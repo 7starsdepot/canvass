@@ -4,6 +4,7 @@ import { SupplyItem, CanvassItem, CanvassSlip } from '../types';
 interface CanvassDraftInput {
   customerName: string;
   departmentOrCompany: string;
+  companyName?: string;
   contactNumber?: string;
   notes?: string;
 }
@@ -311,6 +312,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       id: 'cnv-' + Date.now(),
       canvassNumber,
       createdAt: new Date().toISOString(),
+      companyName: details.companyName?.trim() || '7 Stars School and Office Supplies Depot',
       customerName: details.customerName.trim() || 'Valued Customer / Inquirer',
       departmentOrCompany: details.departmentOrCompany.trim() || 'General Procurement',
       contactNumber: details.contactNumber?.trim() || '',

@@ -1,6 +1,6 @@
 {
   "name": "Office Supplies Inventory",
-  "description": "Office supplies inventory management with Excel spreadsheet upload, administrator buying & selling price controls, and customer-facing price canvass quotations.",
+  "description": "School and office supplies inventory management for 7 Stars School and Office Supplies Depot with Excel spreadsheet upload, administrator buying & selling price controls, and customer-facing price canvass quotations.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

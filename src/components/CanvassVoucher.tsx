@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Printer, Copy, Check, FileText, Building, User, Calendar, Phone } from 'lucide-react';
+import { X, Printer, Copy, Check, FileText, Building, Building2, User, Calendar } from 'lucide-react';
 import { CanvassSlip } from '../types';
 import { formatPeso } from '../utils/currency';
 
@@ -17,14 +17,17 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
     window.print();
   };
 
+  const companyName = slip.companyName || '7 Stars School and Office Supplies Depot';
+
   const handleCopy = () => {
     const lines = [
-      `OFFICE SUPPLIES PRICE CANVASS SHEET`,
+      `7 STARS SCHOOL AND OFFICE SUPPLIES DEPOT`,
+      `PRICE CANVASS QUOTATION SHEET`,
       `Canvass No: ${slip.canvassNumber}`,
       `Date: ${new Date(slip.createdAt).toLocaleDateString()}`,
+      `Company / Depot: ${companyName}`,
       `Canvassed By: ${slip.customerName}`,
-      `Department/Company: ${slip.departmentOrCompany}`,
-      slip.contactNumber ? `Contact: ${slip.contactNumber}` : '',
+      `Department / Client: ${slip.departmentOrCompany}`,
       `--------------------------------------------------`,
       `ITEMS QUOTED:`,
       ...slip.items.map(
@@ -33,7 +36,7 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
       ),
       `--------------------------------------------------`,
       `TOTAL ESTIMATED CANVASS: ${formatPeso(slip.totalAmount)}`,
-      slip.notes ? `Remarks: ${slip.notes}` : '',
+      slip.notes ? `Remarks / Purpose: ${slip.notes}` : '',
     ];
 
     navigator.clipboard.writeText(lines.filter(Boolean).join('\n'));
@@ -91,9 +94,14 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
           <div className="border-b-2 border-slate-900 pb-5 mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Office Supplies Procurement</span>
+                <div className="flex items-center gap-2 mb-1">
+                  <Building2 className="w-4 h-4 text-blue-700 shrink-0" />
+                  <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-blue-700">
+                    {companyName}
+                  </span>
+                </div>
                 <h1 className="text-2xl font-black tracking-tight text-slate-900">PRICE CANVASS SHEET</h1>
-                <p className="text-xs text-slate-500 mt-0.5">Price Quotation & Estimation Summary</p>
+                <p className="text-xs text-slate-500 mt-0.5">Official School & Office Supplies Price Quotation</p>
               </div>
               <div className="text-left sm:text-right">
                 <div className="inline-block px-3 py-1 rounded bg-slate-100 border border-slate-300 font-mono font-bold text-slate-900 text-sm mb-1.5">
@@ -118,19 +126,23 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
           {/* Meta Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs mb-6">
             <div>
-              <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wide">Canvassed For / By</span>
-              <div className="text-slate-900 font-bold text-sm mt-0.5">{slip.customerName}</div>
-              <div className="flex items-center gap-1 text-slate-600 mt-1">
-                <Building className="w-3.5 h-3.5 text-slate-400" />
-                <span>{slip.departmentOrCompany}</span>
+              <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wide">Issuing Company / Depot</span>
+              <div className="text-slate-900 font-bold text-sm mt-0.5 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>{companyName}</span>
               </div>
+              <div className="text-[11px] text-slate-500 mt-1">Official School & Office Supplies Depot</div>
             </div>
 
             <div>
-              <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wide">Contact / Reference</span>
-              <div className="flex items-center gap-1 text-slate-700 font-medium mt-0.5">
-                <Phone className="w-3.5 h-3.5 text-slate-400" />
-                <span>{slip.contactNumber || 'N/A'}</span>
+              <span className="text-slate-500 block text-[11px] font-medium uppercase tracking-wide">Canvassed For / By</span>
+              <div className="text-slate-900 font-bold text-sm mt-0.5 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>{slip.customerName}</span>
+              </div>
+              <div className="flex items-center gap-1 text-slate-600 mt-1">
+                <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{slip.departmentOrCompany}</span>
               </div>
               {slip.notes && (
                 <p className="text-slate-600 italic mt-1 text-[11px]">"{slip.notes}"</p>
@@ -200,9 +212,9 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
               </div>
               <div>
                 <div className="h-12 border-b border-slate-300 mb-1 flex items-end justify-center pb-1">
-                  <span className="font-semibold text-slate-700 text-[11px]">Sales / Supplies Staff</span>
+                  <span className="font-semibold text-slate-800 text-[11px]">{companyName}</span>
                 </div>
-                <span>Verified / Quoted By</span>
+                <span>Official Quotation / Depot Staff</span>
               </div>
             </div>
           </div>

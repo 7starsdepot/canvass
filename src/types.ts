@@ -30,6 +30,7 @@ export interface CanvassSlip {
   id: string;
   canvassNumber: string; // e.g. "CNV-2026-0001"
   createdAt: string;
+  companyName?: string; // e.g. "7 Stars School and Office Supplies Depot"
   customerName: string;
   departmentOrCompany: string;
   contactNumber?: string;

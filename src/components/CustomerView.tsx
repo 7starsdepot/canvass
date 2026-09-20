@@ -82,13 +82,13 @@ export const CustomerView: React.FC = () => {
             <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[11px] font-bold tracking-wide">
               CUSTOMER PORTAL
             </span>
-            <span className="text-xs text-slate-400">Office Supplies Catalog</span>
+            <span className="text-xs text-slate-400">7 Stars School & Office Supplies Depot</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-            Office Supplies Canvass & Catalog
+            School & Office Supplies Canvass & Catalog
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Browse available office supplies, compare rates, and create your price canvass quotation sheet.
+            Browse available supplies, check stock, and generate an official price canvass quotation sheet.
           </p>
         </div>
 

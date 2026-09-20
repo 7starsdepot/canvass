@@ -6,8 +6,8 @@ import {
   Minus,
   FileCheck,
   Building,
+  Building2,
   User,
-  Phone,
   FileText,
   AlertCircle
 } from 'lucide-react';
@@ -29,9 +29,9 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
   const { canvass, updateCanvassQty, removeFromCanvass, clearCanvass, generateCanvassSlip } =
     useInventory();
 
+  const [companyName, setCompanyName] = useState('7 Stars School and Office Supplies Depot');
   const [customerName, setCustomerName] = useState('');
   const [departmentOrCompany, setDepartmentOrCompany] = useState('');
-  const [contactNumber, setContactNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -55,9 +55,9 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
     }
 
     const newSlip = generateCanvassSlip({
+      companyName,
       customerName,
       departmentOrCompany: departmentOrCompany || 'General Department',
-      contactNumber,
       notes,
     });
 
@@ -83,6 +83,9 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
               <FileText className="w-5 h-5" />
             </div>
             <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 block">
+                7 Stars School and Office Supplies Depot
+              </span>
               <h3 className="text-base font-bold text-white">Price Canvass Sheet</h3>
               <p className="text-xs text-slate-400">
                 {canvass.length} item{canvass.length !== 1 ? 's' : ''} in your active canvass quotation
@@ -222,8 +225,27 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
           {/* Canvass Information Details */}
           <div className="pt-3 border-t border-slate-200 space-y-3">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-              Canvass Inquirer Details
+              Canvass Details & Quotation Info
             </span>
+
+            {/* Company Name */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="canvass-company-name">
+                Company Name (Supplier / Depot)
+              </label>
+              <div className="relative">
+                <Building2 className="w-3.5 h-3.5 text-blue-600 absolute left-3 top-2.5" />
+                <input
+                  id="canvass-company-name"
+                  type="text"
+                  value={companyName}
+                  onChange={e => setCompanyName(e.target.value)}
+                  placeholder="7 Stars School and Office Supplies Depot"
+                  className="w-full pl-9 pr-3 py-2 border border-blue-200 bg-blue-50/50 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <span className="text-[10px] text-slate-500 mt-0.5 block">Official company depot issuing this canvass voucher</span>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -246,7 +268,7 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="canvass-company">
-                  Department / Company
+                  Department / School / Client Organization
                 </label>
                 <div className="relative">
                   <Building className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
@@ -255,42 +277,25 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
                     type="text"
                     value={departmentOrCompany}
                     onChange={e => setDepartmentOrCompany(e.target.value)}
-                    placeholder="e.g., Accounting / ABC Corp"
+                    placeholder="e.g., San Juan Elementary / Accounting"
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="canvass-contact">
-                  Contact Number (Optional)
-                </label>
-                <div className="relative">
-                  <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    id="canvass-contact"
-                    type="text"
-                    value={contactNumber}
-                    onChange={e => setContactNumber(e.target.value)}
-                    placeholder="e.g., 0917-123-4567"
-                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="canvass-notes">
-                  Notes / Purpose
-                </label>
-                <input
-                  id="canvass-notes"
-                  type="text"
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="e.g. Budget estimation for Q3 supplies"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="canvass-notes">
+                Notes / Purpose
+              </label>
+              <input
+                id="canvass-notes"
+                type="text"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="e.g., Supplies estimation for Q3 / School term"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
 
