@@ -1,0 +1,6 @@
+{
+  "name": "Office Supplies Inventory",
+  "description": "Office supplies inventory management with Excel spreadsheet upload, administrator buying & selling price controls, and customer-facing price canvass quotations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
