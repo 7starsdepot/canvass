@@ -300,10 +300,26 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const generateCanvassSlip = (details: CanvassDraftInput): CanvassSlip | null => {
     if (canvass.length === 0) return null;
 
+    // Consolidate into strictly unique items (summing quantities of identical items)
+    const uniqueMap = new Map<string, CanvassItem>();
+    canvass.forEach(item => {
+      const key = item.itemId || `${item.genericName.toLowerCase().trim()}::${(item.brand || '').toLowerCase().trim()}::${item.unit.toLowerCase().trim()}::${item.sellingPrice}`;
+      if (uniqueMap.has(key)) {
+        const existing = uniqueMap.get(key)!;
+        uniqueMap.set(key, {
+          ...existing,
+          quantity: existing.quantity + item.quantity,
+        });
+      } else {
+        uniqueMap.set(key, { ...item });
+      }
+    });
+    const uniqueItemsList = Array.from(uniqueMap.values());
+
     const sequence = savedCanvasses.length + 1001;
     const canvassNumber = `CNV-${new Date().getFullYear()}-${String(sequence).padStart(4, '0')}`;
 
-    const totalAmount = canvass.reduce(
+    const totalAmount = uniqueItemsList.reduce(
       (sum, item) => sum + item.sellingPrice * item.quantity,
       0
     );
@@ -317,7 +333,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       departmentOrCompany: details.departmentOrCompany.trim() || 'General Procurement',
       contactNumber: details.contactNumber?.trim() || '',
       notes: details.notes?.trim() || '',
-      items: [...canvass],
+      items: uniqueItemsList,
       totalAmount,
     };
 

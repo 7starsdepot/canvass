@@ -1,1 +1,98 @@
 @import "tailwindcss";
+
+/* -------------------------------------------------------------
+ * Official Canvass Print Stylesheet
+ * Ensures the price canvass sheet prints cleanly as a single,
+ * isolated, unique document without website background or clutter.
+ * ------------------------------------------------------------- */
+@media print {
+  @page {
+    size: portrait;
+    margin: 8mm 10mm;
+  }
+
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    font-size: 10.5pt !important;
+  }
+
+  /* Hide everything outside of the printable canvass voucher */
+  nav,
+  header,
+  footer,
+  aside,
+  .print-hidden,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset modal backdrop so it doesn't render dark or fixed */
+  #canvass-voucher-backdrop {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    box-shadow: none !important;
+  }
+
+  #canvass-voucher-modal {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  #printable-canvass-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Keep table and signature block from splitting awkwardly across pages */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
