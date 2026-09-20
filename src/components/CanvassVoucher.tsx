@@ -1,7 +1,26 @@
 import React, { useState, useMemo } from 'react';
-import { X, Printer, Copy, Check, FileText, Building, Building2, User, Calendar, Hash } from 'lucide-react';
+import {
+  X,
+  Printer,
+  Copy,
+  Check,
+  FileText,
+  Building,
+  Building2,
+  User,
+  Calendar,
+  Hash,
+  Download,
+  ExternalLink,
+  Info,
+} from 'lucide-react';
 import { CanvassSlip } from '../types';
 import { formatPeso } from '../utils/currency';
+import {
+  executePrintCanvass,
+  downloadPrintableCanvassHtml,
+  generateCanvassPrintHtml,
+} from '../utils/printCanvass';
 
 interface CanvassVoucherProps {
   slip: CanvassSlip | null;
@@ -10,6 +29,8 @@ interface CanvassVoucherProps {
 
 export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose }) => {
   const [copied, setCopied] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
 
   if (!slip) return null;
 
@@ -44,7 +65,54 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
   }, [uniqueItems]);
 
   const handlePrint = () => {
-    window.print();
+    setPrintNotice('Launching print dialog...');
+    const result = executePrintCanvass(
+      slip,
+      uniqueItems,
+      totalUnits,
+      totalCalculatedAmount,
+      companyName
+    );
+
+    if (!result.success) {
+      handleDownload();
+      setPrintNotice('Preview sandbox restricted print dialog. Downloaded print-ready file instead!');
+    } else {
+      setTimeout(() => {
+        setPrintNotice(
+          'If the print dialog didn\'t open in your browser preview, click "Download Sheet" to print without restrictions.'
+        );
+      }, 2200);
+    }
+  };
+
+  const handleDownload = () => {
+    downloadPrintableCanvassHtml(
+      slip,
+      uniqueItems,
+      totalUnits,
+      totalCalculatedAmount,
+      companyName
+    );
+    setDownloaded(true);
+    setTimeout(() => setDownloaded(false), 2500);
+  };
+
+  const handleOpenNewTab = () => {
+    const html = generateCanvassPrintHtml(
+      slip,
+      uniqueItems,
+      totalUnits,
+      totalCalculatedAmount,
+      companyName
+    );
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const newWindow = window.open(url, '_blank');
+    if (!newWindow) {
+      handleDownload();
+      setPrintNotice('New tab was blocked by browser. Downloaded printable file directly!');
+    }
   };
 
   const handleCopy = () => {
@@ -80,50 +148,87 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
     >
       <div
         id="canvass-voucher-modal"
-        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto print:max-w-none print:w-full print:m-0 print:border-none print:shadow-none"
+        className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto print:max-w-none print:w-full print:m-0 print:border-none print:shadow-none"
       >
         {/* Top Control Bar (Hidden on print) */}
-        <div className="print:hidden bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
+        <div className="print:hidden bg-slate-900 px-4 sm:px-6 py-3.5 text-white flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <FileText className="w-5 h-5 text-blue-400" />
+            <FileText className="w-5 h-5 text-blue-400 shrink-0" />
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-sm">Official Canvass Slip</h3>
+                <h3 className="font-semibold text-sm text-white">Official Canvass Slip</h3>
                 <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
                   {slip.canvassNumber}
                 </span>
               </div>
               <span className="text-[11px] text-slate-400">
-                {uniqueItems.length} unique data item{uniqueItems.length === 1 ? '' : 's'} • {totalUnits} total unit{totalUnits === 1 ? '' : 's'}
+                {uniqueItems.length} unique item{uniqueItems.length === 1 ? '' : 's'} • {totalUnits} total unit{totalUnits === 1 ? '' : 's'}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center flex-wrap gap-2">
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
-              title="Copy Canvass Summary"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
+              title="Copy Summary to Clipboard"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied!' : 'Copy'}</span>
+              <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
+
+            <button
+              onClick={handleOpenNewTab}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
+              title="Open print sheet in new browser window"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">New Tab</span>
+            </button>
+
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer"
+              title="Download print-ready official HTML canvass file"
+            >
+              {downloaded ? <Check className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+              <span>{downloaded ? 'Downloaded!' : 'Download Sheet'}</span>
+            </button>
+
             <button
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer"
-              title="Print unique canvass sheet on single page"
+              title="Print unique canvass sheet"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print Canvass</span>
+              <span>Print</span>
             </button>
+
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors ml-1 cursor-pointer"
+              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors ml-1 cursor-pointer"
               title="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
+
+        {/* Notice banner if print dialog feedback is present */}
+        {printNotice && (
+          <div className="print:hidden bg-blue-50 border-b border-blue-200 px-4 py-2 text-xs text-blue-900 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>{printNotice}</span>
+            </div>
+            <button
+              onClick={() => setPrintNotice(null)}
+              className="text-blue-500 hover:text-blue-800 text-[11px] font-semibold cursor-pointer underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Printable Official Canvass Paper (Isolated & Fitted for single-page print) */}
         <div id="printable-canvass-content" className="p-6 sm:p-8 print:p-0 print:m-0 bg-white text-slate-800">
@@ -285,18 +390,44 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
         </div>
 
         {/* Footer actions */}
-        <div className="print:hidden bg-slate-50 border-t border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
-          <div className="text-xs text-slate-500 font-mono">
-            {uniqueItems.length} unique item row{uniqueItems.length === 1 ? '' : 's'}
+        <div className="print:hidden bg-slate-50 border-t border-slate-200 px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+          <div className="text-xs text-slate-500 flex items-center gap-2">
+            <span className="font-mono bg-slate-200 px-2 py-0.5 rounded text-slate-700">
+              {uniqueItems.length} unique item row{uniqueItems.length === 1 ? '' : 's'}
+            </span>
+            <span className="text-[11px] text-slate-400 hidden sm:inline">
+              Ready to print or save as PDF document
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={handleOpenNewTab}
+              className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Open print sheet in new browser window"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+              <span>Open in New Tab</span>
+            </button>
+
+            <button
+              onClick={handleDownload}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+              title="Download HTML canvass file for 100% reliable printing"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{downloaded ? 'Downloaded!' : 'Download Sheet'}</span>
+            </button>
+
             <button
               onClick={handlePrint}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+              title="Direct print"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print Slip</span>
+              <span>Print Canvass</span>
             </button>
+
             <button
               onClick={onClose}
               className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"

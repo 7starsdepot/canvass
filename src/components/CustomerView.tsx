@@ -13,7 +13,8 @@ import {
   History,
   Trash2,
   Eye,
-  ShoppingBag
+  ShoppingBag,
+  Printer
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
@@ -205,10 +206,11 @@ export const CustomerView: React.FC = () => {
 
                     <button
                       onClick={() => setActiveVoucher(slip)}
-                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      title="Open and print this official canvass sheet"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>View & Print Slip</span>
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print Canvass Sheet</span>
                     </button>
                   </div>
                 </div>

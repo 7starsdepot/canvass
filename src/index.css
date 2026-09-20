@@ -38,6 +38,14 @@
     display: none !important;
   }
 
+  body:has(#canvass-voucher-backdrop) main:not(:has(#canvass-voucher-backdrop)) {
+    display: none !important;
+  }
+
+  body:has(#canvass-voucher-backdrop) > #root > div > *:not(#canvass-voucher-backdrop):not(:has(#canvass-voucher-backdrop)) {
+    display: none !important;
+  }
+
   /* Reset modal backdrop so it doesn't render dark or fixed */
   #canvass-voucher-backdrop {
     position: static !important;
