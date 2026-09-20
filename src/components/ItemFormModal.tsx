@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, DollarSign, Package, AlertCircle } from 'lucide-react';
 import { SupplyItem } from '../types';
+import { formatPeso } from '../utils/currency';
 
 interface ItemFormModalProps {
   isOpen: boolean;
@@ -253,10 +254,10 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-800 mb-1" htmlFor="buying-price">
-                  Buying Price ($) *
+                  Buying Price (₱) *
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">$</span>
+                  <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₱</span>
                   <input
                     id="buying-price"
                     type="number"
@@ -273,10 +274,10 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-800 mb-1" htmlFor="selling-price">
-                  Selling Price ($) *
+                  Selling Price (₱) *
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">$</span>
+                  <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₱</span>
                   <input
                     id="selling-price"
                     type="number"
@@ -297,7 +298,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
               <div className="bg-white/80 p-2 rounded-lg border border-emerald-200/60">
                 <span className="text-slate-500 text-[10px] block font-medium">Unit Profit</span>
                 <span className={`font-bold ${unitProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                  ${unitProfit.toFixed(2)}
+                  {formatPeso(unitProfit)}
                 </span>
               </div>
               <div className="bg-white/80 p-2 rounded-lg border border-emerald-200/60">

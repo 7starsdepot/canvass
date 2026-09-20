@@ -12,6 +12,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { SupplyItem } from '../types';
+import { formatPeso } from '../utils/currency';
 
 interface ExcelUploadModalProps {
   isOpen: boolean;
@@ -47,15 +48,35 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Helper to flexibly find column value regardless of casing and spacing
+  // Normalize string for fuzzy matching headers (strip non-alphanumeric, lowercase)
+  const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Helper to flexibly find column value in a row object regardless of casing, spacing, and punctuation
   const extractFieldValue = (row: Record<string, unknown>, targetNames: string[]): unknown => {
     const keys = Object.keys(row);
     for (const target of targetNames) {
-      const normalizedTarget = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const normalizedTarget = normalizeKey(target);
       for (const key of keys) {
-        const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedKey = normalizeKey(key);
         if (normalizedKey === normalizedTarget) {
-          return row[key];
+          const val = row[key];
+          if (val !== undefined && val !== null && String(val).trim() !== '') {
+            return val;
+          }
+        }
+      }
+    }
+    // Secondary substring match if exact normalized match failed
+    for (const target of targetNames) {
+      const normalizedTarget = normalizeKey(target);
+      if (normalizedTarget.length < 3) continue;
+      for (const key of keys) {
+        const normalizedKey = normalizeKey(key);
+        if (normalizedKey.includes(normalizedTarget) || normalizedTarget.includes(normalizedKey)) {
+          const val = row[key];
+          if (val !== undefined && val !== null && String(val).trim() !== '') {
+            return val;
+          }
         }
       }
     }
@@ -64,18 +85,79 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
 
   const processWorkbook = (workbook: XLSX.WorkBook, name: string) => {
     try {
-      const firstSheetName = workbook.SheetNames[0];
-      if (!firstSheetName) {
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
         setParseError('The uploaded workbook contains no sheets.');
         setIsProcessing(false);
         return;
       }
 
-      const worksheet = workbook.Sheets[firstSheetName];
-      const rawData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+      // Find the first sheet that actually has rows
+      let activeSheet: XLSX.WorkSheet | null = null;
+      let rawData: Record<string, unknown>[] = [];
+
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) continue;
+
+        // Try standard conversion
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+          defval: '',
+          raw: false,
+        });
+
+        if (rows && rows.length > 0) {
+          activeSheet = sheet;
+          rawData = rows;
+          break;
+        }
+      }
+
+      // If standard conversion produced nothing, try 2D array conversion to search for header row anywhere in first 20 rows
+      if ((!rawData || rawData.length === 0) && workbook.SheetNames.length > 0) {
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        if (firstSheet) {
+          const arrayData = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, {
+            header: 1,
+            defval: '',
+          });
+
+          // Look for row with 'Generic Name' or 'Item' or 'Description'
+          let headerRowIndex = -1;
+          for (let r = 0; r < Math.min(arrayData.length, 25); r++) {
+            const rowArr = arrayData[r];
+            if (Array.isArray(rowArr)) {
+              const rowText = rowArr.map(c => normalizeKey(String(c ?? ''))).join(' ');
+              if (
+                rowText.includes('generic') ||
+                rowText.includes('brand') ||
+                rowText.includes('stock') ||
+                rowText.includes('selling') ||
+                rowText.includes('buying')
+              ) {
+                headerRowIndex = r;
+                break;
+              }
+            }
+          }
+
+          if (headerRowIndex !== -1) {
+            const headerRow = (arrayData[headerRowIndex] as unknown[]).map(c => String(c ?? '').trim());
+            const dataRows = arrayData.slice(headerRowIndex + 1);
+            rawData = dataRows.map(rowArr => {
+              const obj: Record<string, unknown> = {};
+              headerRow.forEach((hdr, colIdx) => {
+                if (hdr) {
+                  obj[hdr] = Array.isArray(rowArr) ? rowArr[colIdx] ?? '' : '';
+                }
+              });
+              return obj;
+            });
+          }
+        }
+      }
 
       if (!rawData || rawData.length === 0) {
-        setParseError('The selected spreadsheet is empty or has no data rows.');
+        setParseError('The selected spreadsheet is empty or has no readable data rows.');
         setIsProcessing(false);
         return;
       }
@@ -83,52 +165,107 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
       const results: ParsedSupplyRow[] = [];
 
       rawData.forEach((row, idx) => {
+        // Skip entirely blank rows
+        const values = Object.values(row).map(v => String(v ?? '').trim()).filter(Boolean);
+        if (values.length === 0) return;
+
         const errors: string[] = [];
 
         // Required headers matching user prompt:
         // "Generic Name", "Brand", "Description", "Unit", "No. of Stock", "selling price", "Buying price"
-        const rawGeneric = extractFieldValue(row, ['Generic Name', 'GenericName', 'Generic', 'Item Name', 'Name']);
-        const rawBrand = extractFieldValue(row, ['Brand', 'Brand Name', 'Manufacturer']);
-        const rawDesc = extractFieldValue(row, ['Description', 'Desc', 'Specs', 'Specification']);
-        const rawUnit = extractFieldValue(row, ['Unit', 'UOM', 'Packaging']);
-        const rawStock = extractFieldValue(row, ['No. of Stock', 'No of Stock', 'No. of stock', 'Stock', 'Quantity', 'Qty']);
-        const rawSelling = extractFieldValue(row, ['selling price', 'Selling Price', 'Selling price', 'Price', 'Retail Price']);
-        const rawBuying = extractFieldValue(row, ['Buying price', 'Buying Price', 'buying price', 'Cost', 'Cost Price', 'Purchase Price']);
-        const rawSku = extractFieldValue(row, ['SKU', 'Item Code', 'Code']);
+        const rawGeneric = extractFieldValue(row, [
+          'Generic Name',
+          'GenericName',
+          'Generic',
+          'Item Name',
+          'Item',
+          'Product Name',
+          'Product',
+          'Name',
+          'Article',
+        ]);
+        const rawBrand = extractFieldValue(row, ['Brand', 'Brand Name', 'Manufacturer', 'Make']);
+        const rawDesc = extractFieldValue(row, [
+          'Description',
+          'Desc',
+          'Specs',
+          'Specification',
+          'Particulars',
+          'Details',
+        ]);
+        const rawUnit = extractFieldValue(row, ['Unit', 'UOM', 'Packaging', 'Unit of Measure', 'Measure']);
+        const rawStock = extractFieldValue(row, [
+          'No. of Stock',
+          'No of Stock',
+          'No. of stock',
+          'Stock',
+          'Quantity',
+          'Qty',
+          'Stocks',
+          'Count',
+          'OnHand',
+        ]);
+        const rawSelling = extractFieldValue(row, [
+          'selling price',
+          'Selling Price',
+          'Selling price',
+          'Selling',
+          'Sell Price',
+          'Price',
+          'Retail Price',
+          'SRP',
+          'Canvass Price',
+        ]);
+        const rawBuying = extractFieldValue(row, [
+          'Buying price',
+          'Buying Price',
+          'buying price',
+          'Buying',
+          'Buy Price',
+          'Cost',
+          'Cost Price',
+          'Purchase Price',
+          'Supplier Price',
+        ]);
+        const rawSku = extractFieldValue(row, ['SKU', 'Item Code', 'Code', 'Part No', 'Stock No']);
 
         const genericName = String(rawGeneric ?? '').trim();
         const brand = String(rawBrand ?? '').trim();
         const description = String(rawDesc ?? '').trim();
         const unit = String(rawUnit ?? 'Piece').trim() || 'Piece';
 
-        // Parse Stock
-        const parsedStock = parseInt(String(rawStock ?? '0').replace(/[^0-9-]/g, ''), 10);
+        // Parse Stock (handle strings with commas like "1,000" or currency)
+        const cleanStockStr = String(rawStock ?? '0').replace(/[^0-9-]/g, '');
+        const parsedStock = parseInt(cleanStockStr, 10);
         const stock = isNaN(parsedStock) ? 0 : Math.max(0, parsedStock);
 
-        // Parse Selling Price
+        // Parse Selling Price (handle ₱, $, commas)
         const cleanSellingStr = String(rawSelling ?? '0').replace(/[^0-9.-]/g, '');
         const parsedSelling = parseFloat(cleanSellingStr);
         const sellingPrice = isNaN(parsedSelling) ? 0 : Math.max(0, parsedSelling);
 
-        // Parse Buying Price
+        // Parse Buying Price (handle ₱, $, commas)
         const cleanBuyingStr = String(rawBuying ?? '0').replace(/[^0-9.-]/g, '');
         const parsedBuying = parseFloat(cleanBuyingStr);
         const buyingPrice = isNaN(parsedBuying) ? 0 : Math.max(0, parsedBuying);
 
+        // If genericName is empty but description exists, use description as genericName
+        const finalGenericName = genericName || description;
+
         // Generate SKU if missing
         let sku = String(rawSku ?? '').trim().toUpperCase();
         if (!sku) {
-          const prefix = (genericName.substring(0, 3) || 'SUP').toUpperCase().replace(/[^A-Z]/g, 'ITM');
+          const prefix = (finalGenericName.substring(0, 3) || 'SUP').toUpperCase().replace(/[^A-Z0-9]/g, 'ITM');
           sku = `${prefix}-${String(idx + 101).padStart(3, '0')}`;
         }
 
         // Validate
-        if (!genericName) {
+        if (!finalGenericName) {
           errors.push('Missing Generic Name');
         }
 
         results.push({
-          genericName,
+          genericName: finalGenericName,
           brand,
           description,
           unit,
@@ -141,12 +278,18 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
         });
       });
 
+      if (results.length === 0) {
+        setParseError('No rows with data found in the spreadsheet.');
+        setIsProcessing(false);
+        return;
+      }
+
       setFileName(name);
       setParsedRows(results);
       setParseError(null);
     } catch (err) {
+      console.error('Spreadsheet processing error:', err);
       setParseError('Failed to parse Excel file. Please ensure it is a valid spreadsheet.');
-      console.error(err);
     } finally {
       setIsProcessing(false);
     }
@@ -163,9 +306,15 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
     reader.onload = evt => {
       try {
         const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, {
+          type: 'array',
+          cellDates: true,
+          cellNF: false,
+          cellText: true,
+        });
         processWorkbook(workbook, file.name);
-      } catch {
+      } catch (err) {
+        console.error('XLSX.read error:', err);
         setParseError('Could not read the spreadsheet file. Supported formats: .xlsx, .xls, .csv');
         setIsProcessing(false);
       }
@@ -189,12 +338,22 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
       reader.onload = evt => {
         try {
           const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
+          const workbook = XLSX.read(data, {
+            type: 'array',
+            cellDates: true,
+            cellNF: false,
+            cellText: true,
+          });
           processWorkbook(workbook, file.name);
-        } catch {
-          setParseError('Could not read spreadsheet.');
+        } catch (err) {
+          console.error('XLSX.read error on drop:', err);
+          setParseError('Could not read spreadsheet file.');
           setIsProcessing(false);
         }
+      };
+      reader.onerror = () => {
+        setParseError('Error reading dropped file.');
+        setIsProcessing(false);
       };
       reader.readAsArrayBuffer(file);
     }
@@ -503,10 +662,10 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                           <td className="py-2 px-3 text-slate-700">{row.unit}</td>
                           <td className="py-2 px-3 text-center font-bold text-slate-800">{row.stock}</td>
                           <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                            ${row.sellingPrice.toFixed(2)}
+                            {formatPeso(row.sellingPrice)}
                           </td>
                           <td className="py-2 px-3 text-right font-mono text-slate-700 bg-amber-50/30">
-                            ${row.buyingPrice.toFixed(2)}
+                            {formatPeso(row.buyingPrice)}
                           </td>
                           <td className="py-2 px-3 text-center">
                             {row.isValid ? (

@@ -22,6 +22,7 @@ import { useInventory } from '../context/InventoryContext';
 import { SupplyItem } from '../types';
 import { ItemFormModal } from './ItemFormModal';
 import { ExcelUploadModal } from './ExcelUploadModal';
+import { formatPeso } from '../utils/currency';
 
 export const AdminView: React.FC = () => {
   const {
@@ -265,7 +266,7 @@ export const AdminView: React.FC = () => {
               <span>Total Cost (Buying Price)</span>
               <DollarSign className="w-3.5 h-3.5 text-amber-400" />
             </div>
-            <div className="text-xl font-black text-amber-300">${totalCostValuation.toFixed(2)}</div>
+            <div className="text-xl font-black text-amber-300">{formatPeso(totalCostValuation)}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Purchasing capital tied</div>
           </div>
 
@@ -274,7 +275,7 @@ export const AdminView: React.FC = () => {
               <span>Selling Valuation</span>
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
             </div>
-            <div className="text-xl font-black text-emerald-300">${totalSellingValuation.toFixed(2)}</div>
+            <div className="text-xl font-black text-emerald-300">{formatPeso(totalSellingValuation)}</div>
             <div className="text-[11px] text-slate-400 mt-0.5">Customer canvass rate value</div>
           </div>
 
@@ -284,7 +285,7 @@ export const AdminView: React.FC = () => {
               <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="text-xl font-black text-emerald-400">
-              ${potentialGrossProfit.toFixed(2)}
+              {formatPeso(potentialGrossProfit)}
             </div>
             <div className="text-[11px] text-slate-400 mt-0.5">+{overallMarginPercent.toFixed(1)}% gross margin</div>
           </div>
@@ -475,12 +476,12 @@ export const AdminView: React.FC = () => {
 
                         {/* Buying Price (Cost) */}
                         <td className="py-3 px-3 text-right font-mono font-medium text-slate-800 bg-amber-50/30 whitespace-nowrap">
-                          ${item.buyingPrice.toFixed(2)}
+                          {formatPeso(item.buyingPrice)}
                         </td>
 
                         {/* Selling Price */}
                         <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 bg-emerald-50/30 whitespace-nowrap">
-                          ${item.sellingPrice.toFixed(2)}
+                          {formatPeso(item.sellingPrice)}
                         </td>
 
                         {/* Margin */}
@@ -493,7 +494,7 @@ export const AdminView: React.FC = () => {
                             {marginPct.toFixed(1)}%
                           </span>
                           <span className="block text-[10px] text-slate-400">
-                            +${unitProfit.toFixed(2)}
+                            +{formatPeso(unitProfit)}
                           </span>
                         </td>
 

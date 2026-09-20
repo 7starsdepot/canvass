@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { CanvassSlip } from '../types';
+import { formatPeso } from '../utils/currency';
 
 interface CanvassModalProps {
   isOpen: boolean;
@@ -156,7 +157,7 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
                           <span>Unit: <strong className="text-slate-700">{item.unit}</strong></span>
-                          <span>Price: <strong className="text-slate-800 font-mono">${item.sellingPrice.toFixed(2)}</strong></span>
+                          <span>Price: <strong className="text-slate-800 font-mono">{formatPeso(item.sellingPrice)}</strong></span>
                         </div>
                         {item.description && (
                           <p className="text-[11px] text-slate-400 truncate mt-0.5">{item.description}</p>
@@ -187,7 +188,7 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
 
                         <div className="text-right min-w-[70px]">
                           <span className="font-mono font-bold text-sm text-slate-900">
-                            ${lineTotal.toFixed(2)}
+                            {formatPeso(lineTotal)}
                           </span>
                         </div>
 
@@ -211,7 +212,7 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
                 <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-right">
                   <span className="text-xs text-slate-500 mr-2">Estimated Canvass Total:</span>
                   <span className="font-mono font-black text-base text-blue-700">
-                    ${grandTotal.toFixed(2)}
+                    {formatPeso(grandTotal)}
                   </span>
                 </div>
               </div>

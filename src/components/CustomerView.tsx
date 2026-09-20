@@ -19,6 +19,7 @@ import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
 import { CanvassModal } from './CanvassModal';
 import { CanvassVoucher } from './CanvassVoucher';
+import { formatPeso } from '../utils/currency';
 
 export const CustomerView: React.FC = () => {
   const {
@@ -188,7 +189,7 @@ export const CustomerView: React.FC = () => {
                     <div className="flex justify-between text-slate-600">
                       <span>Total Estimated Value:</span>
                       <strong className="text-blue-700 font-mono font-bold">
-                        ${slip.totalAmount.toFixed(2)}
+                        {formatPeso(slip.totalAmount)}
                       </strong>
                     </div>
                   </div>
@@ -360,7 +361,7 @@ export const CustomerView: React.FC = () => {
                           Selling Price
                         </span>
                         <span className="text-base sm:text-lg font-black font-mono text-slate-900">
-                          ${item.sellingPrice.toFixed(2)}
+                          {formatPeso(item.sellingPrice)}
                         </span>
                       </div>
 
@@ -422,7 +423,7 @@ export const CustomerView: React.FC = () => {
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 block uppercase font-medium">Estimated Total</span>
                   <span className="text-base sm:text-lg font-black font-mono text-emerald-400">
-                    ${totalCanvassEstimatedAmount.toFixed(2)}
+                    {formatPeso(totalCanvassEstimatedAmount)}
                   </span>
                 </div>
 

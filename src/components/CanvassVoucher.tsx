@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Printer, Copy, Check, FileText, Building, User, Calendar, Phone } from 'lucide-react';
 import { CanvassSlip } from '../types';
+import { formatPeso } from '../utils/currency';
 
 interface CanvassVoucherProps {
   slip: CanvassSlip | null;
@@ -28,10 +29,10 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
       `ITEMS QUOTED:`,
       ...slip.items.map(
         (i, idx) =>
-          `${idx + 1}. ${i.genericName}${i.brand ? ' (' + i.brand + ')' : ''} - ${i.quantity} ${i.unit} @ $${i.sellingPrice.toFixed(2)} = $${(i.quantity * i.sellingPrice).toFixed(2)}`
+          `${idx + 1}. ${i.genericName}${i.brand ? ' (' + i.brand + ')' : ''} - ${i.quantity} ${i.unit} @ ${formatPeso(i.sellingPrice)} = ${formatPeso(i.quantity * i.sellingPrice)}`
       ),
       `--------------------------------------------------`,
-      `TOTAL ESTIMATED CANVASS: $${slip.totalAmount.toFixed(2)}`,
+      `TOTAL ESTIMATED CANVASS: ${formatPeso(slip.totalAmount)}`,
       slip.notes ? `Remarks: ${slip.notes}` : '',
     ];
 
@@ -166,10 +167,10 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
                       <td className="py-2.5 px-2 text-slate-600">{item.unit}</td>
                       <td className="py-2.5 px-2 text-center font-bold text-slate-800">{item.quantity}</td>
                       <td className="py-2.5 px-2 text-right font-mono text-slate-700">
-                        ${item.sellingPrice.toFixed(2)}
+                        {formatPeso(item.sellingPrice)}
                       </td>
                       <td className="py-2.5 px-2 text-right font-mono font-bold text-slate-900">
-                        ${lineTotal.toFixed(2)}
+                        {formatPeso(lineTotal)}
                       </td>
                     </tr>
                   );
@@ -181,7 +182,7 @@ export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose })
                     Grand Total Estimated:
                   </td>
                   <td colSpan={2} className="py-3 px-2 text-right font-black text-base text-blue-700 font-mono">
-                    ${slip.totalAmount.toFixed(2)}
+                    {formatPeso(slip.totalAmount)}
                   </td>
                 </tr>
               </tfoot>
