@@ -36,16 +36,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-base sm:text-lg tracking-tight text-white">
-                  7 Stars School & Office Supplies
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium hidden md:inline-block">
-                  Depot
+              <div className="flex items-center">
+                <span className="font-bold text-base sm:text-lg tracking-tight text-white whitespace-nowrap">
+                  7 Stars School and Office Supplies Depot
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                7 Stars School and Office Supplies Depot • Inventory & Canvass
+                Inventory & Canvass Quotation Manager
               </p>
             </div>
           </div>
