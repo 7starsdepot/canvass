@@ -14,7 +14,9 @@ import {
   Trash2,
   Eye,
   ShoppingBag,
-  Printer
+  Printer,
+  X,
+  Filter
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
@@ -40,7 +42,19 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [customerTab, setCustomerTab] = useState<'catalog' | 'history'>('catalog');
+
+  // Compute available unique categories
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    supplies.forEach(s => {
+      if (s.category && s.category.trim()) {
+        set.add(s.category.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [supplies]);
 
   // Compute available unique brands for quick filter
   const brands = useMemo(() => {
@@ -56,20 +70,23 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
   // Filtered Supplies for Customer
   const filteredSupplies = useMemo(() => {
     return supplies.filter(item => {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
+        !q ||
         (item.genericName && item.genericName.toLowerCase().includes(q)) ||
-        (item.brand && item.brand.toLowerCase().includes(q)) ||
         (item.name && item.name.toLowerCase().includes(q)) ||
+        (item.category && item.category.toLowerCase().includes(q)) ||
+        (item.brand && item.brand.toLowerCase().includes(q)) ||
         (item.description && item.description.toLowerCase().includes(q)) ||
         (item.unit && item.unit.toLowerCase().includes(q)) ||
         (item.sku && item.sku.toLowerCase().includes(q));
 
       const matchesBrand = selectedBrand === 'All' || item.brand === selectedBrand;
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
 
-      return matchesSearch && matchesBrand;
+      return matchesSearch && matchesBrand && matchesCategory;
     });
-  }, [supplies, searchQuery, selectedBrand]);
+  }, [supplies, searchQuery, selectedBrand, selectedCategory]);
 
   // Current active canvass statistics
   const totalCanvassItemsCount = canvass.reduce((sum, item) => sum + item.quantity, 0);
@@ -225,56 +242,113 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
       ) : (
         /* Catalog Tab */
         <div className="space-y-4">
-          {/* Search and Brand Filters */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                id="customer-search-input"
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search supplies by Generic Name, Brand, Description, Unit, or SKU..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-medium"
-                >
-                  Clear
-                </button>
+          {/* Global Search and Category / Brand Filters */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3.5">
+            {/* Main Search Bar Row */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3 sm:top-2.5 pointer-events-none" />
+                <input
+                  id="customer-search-input"
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search supplies by item name, category, brand, SKU, description..."
+                  className="w-full pl-11 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-200 transition-colors"
+                    title="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Category Dropdown */}
+              {categories.length > 0 && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs font-semibold text-slate-500 hidden md:inline">Category:</span>
+                  <select
+                    id="customer-category-select"
+                    value={selectedCategory}
+                    onChange={e => setSelectedCategory(e.target.value)}
+                    aria-label="Filter by category"
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer w-full sm:w-auto"
+                  >
+                    <option value="All">All Categories ({supplies.length})</option>
+                    {categories.map(cat => {
+                      const count = supplies.filter(s => s.category === cat).length;
+                      return (
+                        <option key={cat} value={cat}>
+                          {cat} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
               )}
             </div>
 
-            {brands.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
-                <span className="text-xs font-medium text-slate-500 shrink-0">Brand:</span>
-                <button
-                  onClick={() => setSelectedBrand('All')}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 ${
-                    selectedBrand === 'All'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  All
-                </button>
-                {brands.map(b => (
+            {/* Quick Filter Badges & Search Stats */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 text-xs">
+              {/* Brand Pills */}
+              {brands.length > 0 ? (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                    Brands:
+                  </span>
                   <button
-                    key={b}
-                    onClick={() => setSelectedBrand(b)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 ${
-                      selectedBrand === b
-                        ? 'bg-blue-600 text-white'
+                    onClick={() => setSelectedBrand('All')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 ${
+                      selectedBrand === 'All'
+                        ? 'bg-slate-900 text-white shadow-xs'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    {b}
+                    All
                   </button>
-                ))}
+                  {brands.map(b => (
+                    <button
+                      key={b}
+                      onClick={() => setSelectedBrand(b)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 ${
+                        selectedBrand === b
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div />
+              )}
+
+              {/* Status and Active Filter Reset */}
+              <div className="flex items-center justify-between md:justify-end gap-3 text-slate-500 shrink-0">
+                <span>
+                  Showing <strong className="text-slate-800 font-bold">{filteredSupplies.length}</strong> of{' '}
+                  <strong className="text-slate-800">{supplies.length}</strong> items
+                </span>
+
+                {(searchQuery || selectedBrand !== 'All' || selectedCategory !== 'All') && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedBrand('All');
+                      setSelectedCategory('All');
+                    }}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 underline flex items-center gap-1"
+                  >
+                    Reset all filters
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* Catalog Grid */}
@@ -293,10 +367,11 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                 onClick={() => {
                   setSearchQuery('');
                   setSelectedBrand('All');
+                  setSelectedCategory('All');
                 }}
-                className="mt-3 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200"
+                className="mt-3 px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200"
               >
-                Clear Search & Brand Filter
+                Clear Search & Filters
               </button>
             </div>
           ) : (
@@ -314,16 +389,26 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                   >
                     {/* Top row: Brand badge & SKU */}
                     <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        {item.brand ? (
-                          <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-bold tracking-wide">
-                            {item.brand}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-400 text-[11px]">
-                            Generic
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {item.brand ? (
+                            <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-bold tracking-wide">
+                              <span className="text-slate-500 font-semibold mr-1">Brand:</span>
+                              {item.brand}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-400 text-[11px]">
+                              <span className="text-slate-400 font-normal mr-1">Brand:</span>
+                              Generic
+                            </span>
+                          )}
+
+                          {item.category && (
+                            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100 text-[11px] font-medium">
+                              {item.category}
+                            </span>
+                          )}
+                        </div>
 
                         <span className="font-mono text-[11px] text-slate-400 font-semibold">
                           {item.sku}

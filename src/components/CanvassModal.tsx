@@ -157,6 +157,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                           </span>
                           {item.brand && (
                             <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                              <span className="text-slate-500 font-semibold mr-1">Brand:</span>
                               {item.brand}
                             </span>
                           )}
