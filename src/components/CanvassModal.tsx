@@ -25,6 +25,19 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  if (!isOpen) return null;
+  return <CanvassModalContent onClose={onClose} onSuccess={onSuccess} />;
+};
+
+interface CanvassModalContentProps {
+  onClose: () => void;
+  onSuccess: (slip: CanvassSlip) => void;
+}
+
+const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
+  onClose,
+  onSuccess,
+}) => {
   const { canvass, updateCanvassQty, removeFromCanvass, clearCanvass, generateCanvassSlip } =
     useInventory();
 
@@ -32,8 +45,6 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
   const [departmentOrCompany, setDepartmentOrCompany] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  if (!isOpen) return null;
 
   // Selling Price total only (Buying price is strictly omitted from customer view)
   const grandTotal = canvass.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
@@ -47,16 +58,13 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
       return;
     }
 
-    if (!customerName.trim()) {
-      setError('Please enter your name or the canvasser name.');
-      return;
-    }
+    const resolvedCustomerName = customerName.trim() || 'Valued Customer / Canvasser';
 
     const newSlip = generateCanvassSlip({
       companyName: '7 Stars School and Office Supplies Depot',
-      customerName,
-      departmentOrCompany: departmentOrCompany || 'General Department',
-      notes,
+      customerName: resolvedCustomerName,
+      departmentOrCompany: departmentOrCompany.trim() || 'General Department / Organization',
+      notes: notes.trim(),
     });
 
     if (newSlip) {
@@ -229,7 +237,7 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1" htmlFor="canvass-cust-name">
-                  Canvassed By / Name *
+                  Canvassed By / Name
                 </label>
                 <div className="relative">
                   <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
@@ -238,8 +246,7 @@ export const CanvassModal: React.FC<CanvassModalProps> = ({
                     type="text"
                     value={customerName}
                     onChange={e => setCustomerName(e.target.value)}
-                    placeholder="e.g., Jennifer Cruz"
-                    required
+                    placeholder="e.g., Jennifer Cruz (or leave blank)"
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

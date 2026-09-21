@@ -28,11 +28,19 @@ interface CanvassVoucherProps {
 }
 
 export const CanvassVoucher: React.FC<CanvassVoucherProps> = ({ slip, onClose }) => {
+  if (!slip) return null;
+  return <CanvassVoucherModal slip={slip} onClose={onClose} />;
+};
+
+interface CanvassVoucherModalProps {
+  slip: CanvassSlip;
+  onClose: () => void;
+}
+
+const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose }) => {
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [printNotice, setPrintNotice] = useState<string | null>(null);
-
-  if (!slip) return null;
 
   const companyName = slip.companyName || '7 Stars School and Office Supplies Depot';
 

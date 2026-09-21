@@ -18,11 +18,17 @@ import {
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
-import { CanvassModal } from './CanvassModal';
-import { CanvassVoucher } from './CanvassVoucher';
 import { formatPeso } from '../utils/currency';
 
-export const CustomerView: React.FC = () => {
+interface CustomerViewProps {
+  onOpenCanvass?: () => void;
+  onViewVoucher?: (slip: CanvassSlip) => void;
+}
+
+export const CustomerView: React.FC<CustomerViewProps> = ({
+  onOpenCanvass,
+  onViewVoucher,
+}) => {
   const {
     supplies,
     canvass,
@@ -34,8 +40,6 @@ export const CustomerView: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('All');
-  const [isCanvassModalOpen, setIsCanvassModalOpen] = useState(false);
-  const [activeVoucher, setActiveVoucher] = useState<CanvassSlip | null>(null);
   const [customerTab, setCustomerTab] = useState<'catalog' | 'history'>('catalog');
 
   // Compute available unique brands for quick filter
@@ -121,7 +125,7 @@ export const CustomerView: React.FC = () => {
 
           <button
             id="view-canvass-btn"
-            onClick={() => setIsCanvassModalOpen(true)}
+            onClick={onOpenCanvass}
             className="relative px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-2 transition-all cursor-pointer"
           >
             <FileText className="w-4 h-4" />
@@ -205,7 +209,7 @@ export const CustomerView: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => setActiveVoucher(slip)}
+                      onClick={() => onViewVoucher && onViewVoucher(slip)}
                       className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                       title="Open and print this official canvass sheet"
                     >
@@ -430,7 +434,7 @@ export const CustomerView: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => setIsCanvassModalOpen(true)}
+                  onClick={onOpenCanvass}
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <FileText className="w-4 h-4" />
@@ -441,21 +445,6 @@ export const CustomerView: React.FC = () => {
           )}
         </div>
       )}
-
-      {/* Canvass Details Modal */}
-      <CanvassModal
-        isOpen={isCanvassModalOpen}
-        onClose={() => setIsCanvassModalOpen(false)}
-        onSuccess={slip => {
-          setActiveVoucher(slip);
-        }}
-      />
-
-      {/* Printable Canvass Voucher */}
-      <CanvassVoucher
-        slip={activeVoucher}
-        onClose={() => setActiveVoucher(null)}
-      />
     </div>
   );
 };
