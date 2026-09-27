@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   AlertCircle,
   Mail,
+  CheckCircle2,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
@@ -44,6 +45,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     addToCanvass,
     updateCanvassQty,
     deleteCanvassSlip,
+    lastRecordedTime,
   } = useInventory();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -342,9 +344,17 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
             School & Office Supplies Catalog & Canvass
           </h1>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1">
-            Browse available stock, request price quotes, and generate an official printable canvass voucher.
-          </p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
+              Browse available stock, request price quotes, and generate an official printable canvass voucher.
+            </p>
+            {supplies.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[11px] font-semibold border border-blue-400/30">
+                <CheckCircle2 className="w-3 h-3 text-blue-400" />
+                <span>{supplies.length} items available from recorded price list</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Canvass Action Quick Button */}

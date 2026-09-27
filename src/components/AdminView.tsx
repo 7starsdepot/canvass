@@ -49,6 +49,7 @@ export const AdminView: React.FC = () => {
     adminUsername,
     savedCanvasses,
     deleteCanvassSlip,
+    lastRecordedTime,
   } = useInventory();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -692,9 +693,17 @@ export const AdminView: React.FC = () => {
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
               Inventory & Pricing Control Console
             </h1>
-            <p className="text-xs sm:text-sm text-blue-200/70 max-w-2xl mt-0.5">
-              Click any price in the table to edit Selling and Buying rates directly, adjust stock, or upload Excel spreadsheets.
-            </p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <p className="text-xs sm:text-sm text-blue-200/70 max-w-2xl">
+                Click any price in the table to edit Selling and Buying rates directly, adjust stock, or upload Excel spreadsheets.
+              </p>
+              {supplies.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[11px] font-semibold border border-blue-400/30">
+                  <CheckCircle2 className="w-3 h-3 text-blue-400" />
+                  <span>{supplies.length} items preserved from latest recorded price list</span>
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Action Buttons Toolbar */}
