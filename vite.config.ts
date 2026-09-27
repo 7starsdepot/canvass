@@ -7,9 +7,15 @@ import { defineConfig, Plugin } from 'vite';
 function persistentStoragePlugin(): Plugin {
   const dataDir = path.resolve(import.meta.dirname, 'data');
   const publicDir = path.resolve(import.meta.dirname, 'public');
+  const distDir = path.resolve(import.meta.dirname, 'dist');
+  const srcDataDir = path.resolve(import.meta.dirname, 'src', 'data');
+
   const suppliesFile = path.join(dataDir, 'recorded_price_list.json');
   const publicSuppliesFile = path.join(publicDir, 'recorded_price_list.json');
+  const distSuppliesFile = path.join(distDir, 'recorded_price_list.json');
+  const srcDataSuppliesFile = path.join(srcDataDir, 'initialSupplies.json');
   const ordersFile = path.join(dataDir, 'recorded_orders.json');
+  const distOrdersFile = path.join(distDir, 'recorded_orders.json');
 
   const setupMiddleware = (middlewares: any) => {
     middlewares.use(async (req: any, res: any, next: any) => {
@@ -21,6 +27,10 @@ function persistentStoragePlugin(): Plugin {
             if (fs.existsSync(suppliesFile)) {
               const content = fs.readFileSync(suppliesFile, 'utf-8');
               res.setHeader('Content-Type', 'application/json');
+              res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+              res.setHeader('Pragma', 'no-cache');
+              res.setHeader('Expires', '0');
+              res.setHeader('Surrogate-Control', 'no-store');
               res.end(content || '[]');
               return;
             }
@@ -28,6 +38,9 @@ function persistentStoragePlugin(): Plugin {
             console.error('Error reading supplies:', e);
           }
           res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
           res.end('[]');
           return;
         }
@@ -45,6 +58,7 @@ function persistentStoragePlugin(): Plugin {
                   fs.mkdirSync(dataDir, { recursive: true });
                 }
                 fs.writeFileSync(suppliesFile, JSON.stringify(parsed, null, 2), 'utf-8');
+
                 try {
                   if (!fs.existsSync(publicDir)) {
                     fs.mkdirSync(publicDir, { recursive: true });
@@ -53,7 +67,25 @@ function persistentStoragePlugin(): Plugin {
                 } catch {
                   // ignore
                 }
+
+                try {
+                  if (fs.existsSync(distDir)) {
+                    fs.writeFileSync(distSuppliesFile, JSON.stringify(parsed, null, 2), 'utf-8');
+                  }
+                } catch {
+                  // ignore
+                }
+
+                try {
+                  if (fs.existsSync(srcDataDir)) {
+                    fs.writeFileSync(srcDataSuppliesFile, JSON.stringify(parsed, null, 2), 'utf-8');
+                  }
+                } catch {
+                  // ignore
+                }
+
                 res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
                 res.end(JSON.stringify({ success: true, count: parsed.length }));
                 return;
               }
@@ -77,10 +109,14 @@ function persistentStoragePlugin(): Plugin {
             if (fs.existsSync(publicSuppliesFile)) {
               fs.writeFileSync(publicSuppliesFile, '[]', 'utf-8');
             }
+            if (fs.existsSync(distSuppliesFile)) {
+              fs.writeFileSync(distSuppliesFile, '[]', 'utf-8');
+            }
           } catch {
             // ignore
           }
           res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
           res.end(JSON.stringify({ success: true }));
           return;
         }
@@ -92,6 +128,9 @@ function persistentStoragePlugin(): Plugin {
             if (fs.existsSync(ordersFile)) {
               const content = fs.readFileSync(ordersFile, 'utf-8');
               res.setHeader('Content-Type', 'application/json');
+              res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+              res.setHeader('Pragma', 'no-cache');
+              res.setHeader('Expires', '0');
               res.end(content || '[]');
               return;
             }
@@ -99,6 +138,9 @@ function persistentStoragePlugin(): Plugin {
             // ignore
           }
           res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
           res.end('[]');
           return;
         }
@@ -116,7 +158,15 @@ function persistentStoragePlugin(): Plugin {
                   fs.mkdirSync(dataDir, { recursive: true });
                 }
                 fs.writeFileSync(ordersFile, JSON.stringify(parsed, null, 2), 'utf-8');
+                try {
+                  if (fs.existsSync(distDir)) {
+                    fs.writeFileSync(distOrdersFile, JSON.stringify(parsed, null, 2), 'utf-8');
+                  }
+                } catch {
+                  // ignore
+                }
                 res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
                 res.end(JSON.stringify({ success: true, count: parsed.length }));
                 return;
               }

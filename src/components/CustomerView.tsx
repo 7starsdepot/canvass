@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   Lock,
+  RefreshCw,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
@@ -50,6 +51,8 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     updateCanvassQty,
     deleteCanvassSlip,
     lastRecordedTime,
+    isSyncing,
+    refreshSupplies,
   } = useInventory();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -368,9 +371,18 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             {supplies.length > 0 && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[11px] font-semibold border border-blue-400/30">
                 <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                <span>{supplies.length} items available from recorded price list</span>
+                <span>{supplies.length} items recorded</span>
               </span>
             )}
+            <button
+              onClick={() => refreshSupplies()}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-[11px] font-medium border border-slate-700 transition-all cursor-pointer"
+              title="Click to fetch the latest price list from other devices"
+            >
+              <RefreshCw className={`w-3 h-3 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : 'Live Sync Active'}</span>
+            </button>
           </div>
         </div>
 

@@ -27,6 +27,7 @@ import {
   Mail,
   FileText,
   Calendar,
+  RefreshCw,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
@@ -50,6 +51,8 @@ export const AdminView: React.FC = () => {
     savedCanvasses,
     deleteCanvassSlip,
     lastRecordedTime,
+    isSyncing,
+    refreshSupplies,
   } = useInventory();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -724,6 +727,16 @@ export const AdminView: React.FC = () => {
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Excel Template</span>
+            </button>
+
+            <button
+              onClick={() => refreshSupplies()}
+              disabled={isSyncing}
+              className="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Fetch latest updates from server/devices"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync Live'}</span>
             </button>
 
             <button

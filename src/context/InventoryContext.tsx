@@ -14,7 +14,9 @@ interface InventoryContextType {
   // Inventory (Admin & Customer Catalog)
   supplies: SupplyItem[];
   isPriceListLoaded: boolean;
+  isSyncing: boolean;
   lastRecordedTime: string | null;
+  refreshSupplies: () => Promise<void>;
   addSupplyItem: (item: Omit<SupplyItem, 'id' | 'updatedAt'>) => void;
   updateSupplyItem: (item: SupplyItem) => void;
   updatePrices: (id: string, buyingPrice: number, sellingPrice: number) => void;
@@ -168,33 +170,51 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * 3. Server persistent API (/api/supplies)
    * 4. Timestamp metadata
    */
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  /**
+   * Helper to write recorded supplies to all localStorage keys
+   */
+  const persistLocalCache = (items: SupplyItem[], recordedAt?: string) => {
+    try {
+      localStorage.setItem(SUPPLIES_STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(SUPPLIES_BACKUP_KEY, JSON.stringify(items));
+      localStorage.setItem('office_supplies_data', JSON.stringify(items));
+      if (recordedAt) {
+        localStorage.setItem(LAST_RECORDED_KEY, recordedAt);
+      }
+    } catch (err) {
+      console.warn('localStorage save warning:', err);
+    }
+  };
+
+  /**
+   * Universal persistence helper:
+   * Writes the recorded price list to:
+   * 1. Primary localStorage key (office_supplies_data_v2)
+   * 2. Permanent backup localStorage keys (7stars_recorded_supplies_price_list, office_supplies_data)
+   * 3. Server persistent API (/api/supplies) with cache-busting
+   * 4. Timestamp metadata
+   */
   const persistSupplies = (itemsToPersist: SupplyItem[], updateTimestamp = true) => {
     if (!itemsToPersist || !Array.isArray(itemsToPersist)) return;
 
     const recordedAt = new Date().toISOString();
     if (updateTimestamp && itemsToPersist.length > 0) {
       setLastRecordedTime(recordedAt);
-      try {
-        localStorage.setItem(LAST_RECORDED_KEY, recordedAt);
-      } catch {
-        // ignore
-      }
     }
 
-    // Save to all localStorage keys for maximum resilience
-    try {
-      localStorage.setItem(SUPPLIES_STORAGE_KEY, JSON.stringify(itemsToPersist));
-      localStorage.setItem(SUPPLIES_BACKUP_KEY, JSON.stringify(itemsToPersist));
-      localStorage.setItem('office_supplies_data', JSON.stringify(itemsToPersist));
-    } catch (err) {
-      console.warn('localStorage save warning:', err);
-    }
+    persistLocalCache(itemsToPersist, updateTimestamp && itemsToPersist.length > 0 ? recordedAt : undefined);
 
-    // Persist to server backend API
+    // Persist to server backend API immediately
     try {
       fetch('/api/supplies', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store',
+          Pragma: 'no-cache',
+        },
         body: JSON.stringify(itemsToPersist),
       }).catch(err => {
         console.warn('Notice saving supplies to backend:', err);
@@ -205,86 +225,153 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   /**
-   * On Initial Mount:
-   * Check the backend persistent API (/api/supplies) to ensure that if the app is opened
-   * on a new device, a fresh tab, or after browser cache clear, the previous recorded
-   * information remains fully available.
+   * Synchronization with Persistent Backend:
+   * Fetches latest supplies from /api/supplies.
+   * If server has updated prices or items, immediately synchronizes local state
+   * so other devices see the new prices in real-time.
    */
-  useEffect(() => {
-    let isCancelled = false;
+  const syncWithPersistentBackend = async (force = false) => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`/api/supplies?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          Pragma: 'no-cache',
+        },
+      });
 
-    async function syncWithPersistentBackend() {
-      try {
-        if (!localStorage.getItem(SUPPLIES_STORAGE_KEY) && supplies.length > 0) {
-          localStorage.setItem(SUPPLIES_STORAGE_KEY, JSON.stringify(supplies));
-          localStorage.setItem(SUPPLIES_BACKUP_KEY, JSON.stringify(supplies));
+      if (res.ok) {
+        const serverItems = await res.json();
+        if (Array.isArray(serverItems) && serverItems.length > 0) {
+          setSupplies(prev => {
+            // Check if server data differs from current device state (price changes, stock changes, etc.)
+            const hasDifference =
+              prev.length !== serverItems.length ||
+              serverItems.some((sItem: SupplyItem, idx: number) => {
+                const pItem = prev[idx];
+                if (!pItem) return true;
+                return (
+                  pItem.id !== sItem.id ||
+                  pItem.sellingPrice !== sItem.sellingPrice ||
+                  pItem.buyingPrice !== sItem.buyingPrice ||
+                  pItem.stock !== sItem.stock ||
+                  pItem.name !== sItem.name ||
+                  pItem.updatedAt !== sItem.updatedAt
+                );
+              });
+
+            if (hasDifference || prev.length === 0 || force) {
+              persistLocalCache(serverItems);
+              return serverItems;
+            }
+            return prev;
+          });
+
+          // Also keep active canvass items selling prices updated to latest prices
+          setCanvass(prevCanvass => {
+            if (prevCanvass.length === 0) return prevCanvass;
+            let changed = false;
+            const nextCanvass = prevCanvass.map(c => {
+              const matched = serverItems.find((s: SupplyItem) => s.id === c.itemId || s.sku === c.sku);
+              if (matched && matched.sellingPrice !== c.sellingPrice) {
+                changed = true;
+                return { ...c, sellingPrice: matched.sellingPrice };
+              }
+              return c;
+            });
+            return changed ? nextCanvass : prevCanvass;
+          });
+        } else if (supplies.length > 0) {
+          // If server was empty but local has data, seed the server
+          persistSupplies(supplies, false);
         }
-      } catch {
-        // ignore
       }
-
+    } catch {
+      // Fallback to static public file if API route had an issue
       try {
-        const res = await fetch('/api/supplies');
-        if (res.ok) {
-          const serverItems = await res.json();
-          if (!isCancelled && Array.isArray(serverItems) && serverItems.length > 0) {
+        const staticRes = await fetch(`/recorded_price_list.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (staticRes.ok) {
+          const data = await staticRes.json();
+          if (Array.isArray(data) && data.length > 0) {
             setSupplies(prev => {
-              // If local state was empty, or server has recorded data, display it immediately
-              if (prev.length === 0) {
-                return serverItems;
+              if (prev.length === 0 || prev.length !== data.length || force) {
+                persistLocalCache(data);
+                return data;
               }
               return prev;
             });
-            // Update local storage backup with server data
-            try {
-              localStorage.setItem(SUPPLIES_STORAGE_KEY, JSON.stringify(serverItems));
-              localStorage.setItem(SUPPLIES_BACKUP_KEY, JSON.stringify(serverItems));
-            } catch {
-              // ignore
-            }
-          } else if (supplies.length > 0) {
-            // If local storage has recorded data but server doesn't yet, sync local to server
-            persistSupplies(supplies, false);
-          }
-        }
-      } catch {
-        // Fallback to static public file if API route had an issue
-        try {
-          const staticRes = await fetch('/recorded_price_list.json');
-          if (staticRes.ok) {
-            const data = await staticRes.json();
-            if (!isCancelled && Array.isArray(data) && data.length > 0) {
-              setSupplies(prev => (prev.length === 0 ? data : prev));
-            }
-          }
-        } catch {
-          // ignore
-        }
-      } finally {
-        if (!isCancelled) {
-          isInitializedRef.current = true;
-          setIsPriceListLoaded(true);
-        }
-      }
-
-      // Also sync saved orders from backend if available
-      try {
-        const ordersRes = await fetch('/api/orders');
-        if (ordersRes.ok) {
-          const serverOrders = await ordersRes.json();
-          if (!isCancelled && Array.isArray(serverOrders) && serverOrders.length > 0) {
-            setSavedCanvasses(prev => (prev.length === 0 ? serverOrders : prev));
           }
         }
       } catch {
         // ignore
       }
+    } finally {
+      isInitializedRef.current = true;
+      setIsPriceListLoaded(true);
+      setIsSyncing(false);
     }
 
+    // Also sync saved orders from backend if available
+    try {
+      const ordersRes = await fetch(`/api/orders?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
+      if (ordersRes.ok) {
+        const serverOrders = await ordersRes.json();
+        if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+          setSavedCanvasses(prev => {
+            if (prev.length !== serverOrders.length || JSON.stringify(prev) !== JSON.stringify(serverOrders)) {
+              try {
+                localStorage.setItem(SAVED_CANVASSES_STORAGE_KEY, JSON.stringify(serverOrders));
+              } catch {}
+              return serverOrders;
+            }
+            return prev;
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  /**
+   * Manual refresh trigger accessible across views
+   */
+  const refreshSupplies = async () => {
+    await syncWithPersistentBackend(true);
+  };
+
+  /**
+   * On Mount:
+   * 1. Initial sync immediately
+   * 2. Re-sync on tab focus / visibility change (e.g. when opening browser on phone)
+   * 3. Background polling every 5 seconds for real-time multi-device price updates
+   */
+  useEffect(() => {
     syncWithPersistentBackend();
 
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        syncWithPersistentBackend();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisible);
+    window.addEventListener('visibilitychange', handleFocusOrVisible);
+
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncWithPersistentBackend();
+      }
+    }, 5000);
+
     return () => {
-      isCancelled = true;
+      window.removeEventListener('focus', handleFocusOrVisible);
+      window.removeEventListener('visibilitychange', handleFocusOrVisible);
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -386,9 +473,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName),
       updatedAt: new Date().toISOString(),
     };
-    const nextSupplies = [newItem, ...supplies];
-    setSupplies(nextSupplies);
-    persistSupplies(nextSupplies);
+    setSupplies(prevSupplies => {
+      const nextSupplies = [newItem, ...prevSupplies];
+      persistSupplies(nextSupplies);
+      return nextSupplies;
+    });
   };
 
   const updateSupplyItem = (item: SupplyItem) => {
@@ -399,9 +488,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: new Date().toISOString(),
     };
 
-    const nextSupplies = supplies.map(s => (s.id === item.id ? updated : s));
-    setSupplies(nextSupplies);
-    persistSupplies(nextSupplies);
+    setSupplies(prevSupplies => {
+      const nextSupplies = prevSupplies.map(s => (s.id === item.id ? updated : s));
+      persistSupplies(nextSupplies);
+      return nextSupplies;
+    });
 
     // Also update any reference in active customer canvass
     setCanvass(prev =>
@@ -425,20 +516,22 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const safeBuying = Math.max(0, Number(buyingPrice) || 0);
     const safeSelling = Math.max(0, Number(sellingPrice) || 0);
 
-    const nextSupplies = supplies.map(s => {
-      if (s.id === id) {
-        return {
-          ...s,
-          buyingPrice: safeBuying,
-          sellingPrice: safeSelling,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return s;
-    });
+    setSupplies(prevSupplies => {
+      const nextSupplies = prevSupplies.map(s => {
+        if (s.id === id) {
+          return {
+            ...s,
+            buyingPrice: safeBuying,
+            sellingPrice: safeSelling,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return s;
+      });
 
-    setSupplies(nextSupplies);
-    persistSupplies(nextSupplies);
+      persistSupplies(nextSupplies);
+      return nextSupplies;
+    });
 
     // Update active canvass items selling price if currently canvassed
     setCanvass(prev =>
@@ -454,22 +547,26 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteSupplyItem = (id: string) => {
-    const nextSupplies = supplies.filter(s => s.id !== id);
-    setSupplies(nextSupplies);
-    persistSupplies(nextSupplies);
+    setSupplies(prevSupplies => {
+      const nextSupplies = prevSupplies.filter(s => s.id !== id);
+      persistSupplies(nextSupplies);
+      return nextSupplies;
+    });
   };
 
   const adjustStock = (id: string, delta: number) => {
-    const nextSupplies = supplies.map(s => {
-      if (s.id === id) {
-        const newStock = Math.max(0, s.stock + delta);
-        return { ...s, stock: newStock, updatedAt: new Date().toISOString() };
-      }
-      return s;
-    });
+    setSupplies(prevSupplies => {
+      const nextSupplies = prevSupplies.map(s => {
+        if (s.id === id) {
+          const newStock = Math.max(0, s.stock + delta);
+          return { ...s, stock: newStock, updatedAt: new Date().toISOString() };
+        }
+        return s;
+      });
 
-    setSupplies(nextSupplies);
-    persistSupplies(nextSupplies);
+      persistSupplies(nextSupplies);
+      return nextSupplies;
+    });
   };
 
   const clearAllSupplies = () => {
@@ -613,7 +710,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     () => ({
       supplies,
       isPriceListLoaded,
+      isSyncing,
       lastRecordedTime,
+      refreshSupplies,
       addSupplyItem,
       updateSupplyItem,
       updatePrices,
@@ -634,7 +733,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       adminLogin,
       adminLogout,
     }),
-    [supplies, isPriceListLoaded, lastRecordedTime, canvass, savedCanvasses, isAdmin, adminUsername]
+    [supplies, isPriceListLoaded, isSyncing, lastRecordedTime, canvass, savedCanvasses, isAdmin, adminUsername]
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
