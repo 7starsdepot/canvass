@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, DollarSign, Package, AlertCircle } from 'lucide-react';
+import { X, Save, DollarSign, Package, AlertCircle, Star } from 'lucide-react';
 import { SupplyItem } from '../types';
 import { formatPeso } from '../utils/currency';
 
@@ -105,30 +105,36 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   return (
     <div
       id="item-form-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
     >
       <div
         id="item-form-modal"
         className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto"
       >
-        {/* Header */}
-        <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
+        {/* Header (Blue & Red Theme) */}
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-red-950 px-6 py-4 text-white flex items-center justify-between border-b border-blue-900/60">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
-              <Package className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-md border border-red-400/40">
+              <Package className="w-5 h-5" />
             </div>
             <div>
+              <div className="flex items-center gap-1">
+                <span className="text-red-400 font-extrabold text-[11px] flex items-center gap-0.5">
+                  7 Stars <Star className="w-2.5 h-2.5 fill-red-400 text-red-400" />
+                </span>
+                <span className="text-[10px] text-slate-400">• Inventory Editor</span>
+              </div>
               <h3 className="font-bold text-sm text-white">
                 {itemToEdit ? 'Edit Supply Details & Prices' : 'Add New Office Supply Item'}
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-blue-200/70">
                 Configure Generic Name, Brand, Unit, Stock, and Selling & Buying Prices
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -136,8 +142,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-xs font-semibold">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
               <span>{error}</span>
             </div>
           )}
@@ -155,7 +161,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 onChange={e => setGenericName(e.target.value)}
                 placeholder="e.g. Ballpen 0.5mm, Copy Paper"
                 required
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
 
@@ -169,7 +175,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 value={brand}
                 onChange={e => setBrand(e.target.value)}
                 placeholder="e.g. Pilot, PaperOne, Faber-Castell"
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
           </div>
@@ -185,7 +191,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Detailed specifications, color, model, packaging details..."
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 resize-none"
             />
           </div>
 
@@ -202,7 +208,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 onChange={e => setUnit(e.target.value)}
                 placeholder="e.g. Box of 12, Ream, Piece, Pack"
                 required
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
 
@@ -217,8 +223,17 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 value={stock}
                 onChange={e => setStock(Math.max(0, parseInt(e.target.value) || 0))}
                 required
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+                className={`w-full px-3 py-2 border rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 ${
+                  stock === 0
+                    ? 'border-red-300 bg-red-50/50 text-red-700 focus:ring-red-500'
+                    : 'border-slate-300 text-slate-900 focus:ring-blue-600'
+                }`}
               />
+              {stock === 0 && (
+                <span className="text-[10px] text-red-600 font-semibold mt-0.5 block">
+                  Zero stock items are placed at the lowest part of the inventory
+                </span>
+              )}
             </div>
           </div>
 
@@ -233,15 +248,15 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
               value={sku}
               onChange={e => setSku(e.target.value)}
               placeholder="e.g. BAL-001"
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
             />
           </div>
 
-          {/* Prices Section (Admin Portal Controls) */}
-          <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-3">
+          {/* Prices Section (Blue & Red Theme) */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-700" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-blue-600" />
                 Pricing Configuration (Admin Only)
               </span>
               {unitProfit < 0 && (
@@ -266,7 +281,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                     value={buyingPrice}
                     onChange={e => setBuyingPrice(parseFloat(e.target.value) || 0)}
                     required
-                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">Purchase cost to store</span>
@@ -286,7 +301,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                     value={sellingPrice}
                     onChange={e => setSellingPrice(parseFloat(e.target.value) || 0)}
                     required
-                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-blue-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">Customer canvass rate</span>
@@ -294,22 +309,22 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
             </div>
 
             {/* Live Margin Calculation Widget */}
-            <div className="pt-2 border-t border-emerald-200/60 grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="bg-white/80 p-2 rounded-lg border border-emerald-200/60">
+            <div className="pt-2 border-t border-slate-200 grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-2xs">
                 <span className="text-slate-500 text-[10px] block font-medium">Unit Profit</span>
-                <span className={`font-bold ${unitProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                <span className={`font-bold ${unitProfit >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
                   {formatPeso(unitProfit)}
                 </span>
               </div>
-              <div className="bg-white/80 p-2 rounded-lg border border-emerald-200/60">
+              <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-2xs">
                 <span className="text-slate-500 text-[10px] block font-medium">Gross Margin</span>
-                <span className={`font-bold ${marginPercent >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                <span className={`font-bold ${marginPercent >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
                   {marginPercent.toFixed(1)}%
                 </span>
               </div>
-              <div className="bg-white/80 p-2 rounded-lg border border-emerald-200/60">
+              <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-2xs">
                 <span className="text-slate-500 text-[10px] block font-medium">Markup</span>
-                <span className={`font-bold ${markupPercent >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                <span className={`font-bold ${markupPercent >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
                   {markupPercent.toFixed(1)}%
                 </span>
               </div>
@@ -321,14 +336,14 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               id="save-item-btn"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer border border-red-500/50"
             >
               <Save className="w-4 h-4" />
               <span>{itemToEdit ? 'Save Changes' : 'Add Item'}</span>

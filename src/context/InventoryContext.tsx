@@ -14,6 +14,7 @@ interface InventoryContextType {
   supplies: SupplyItem[];
   addSupplyItem: (item: Omit<SupplyItem, 'id' | 'updatedAt'>) => void;
   updateSupplyItem: (item: SupplyItem) => void;
+  updatePrices: (id: string, buyingPrice: number, sellingPrice: number) => void;
   deleteSupplyItem: (id: string) => void;
   adjustStock: (id: string, delta: number) => void;
   importExcelSupplies: (items: Omit<SupplyItem, 'id' | 'updatedAt'>[], mode: 'append' | 'replace') => number;
@@ -199,6 +200,37 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
   };
 
+  const updatePrices = (id: string, buyingPrice: number, sellingPrice: number) => {
+    const safeBuying = Math.max(0, Number(buyingPrice) || 0);
+    const safeSelling = Math.max(0, Number(sellingPrice) || 0);
+
+    setSupplies(prev =>
+      prev.map(s => {
+        if (s.id === id) {
+          return {
+            ...s,
+            buyingPrice: safeBuying,
+            sellingPrice: safeSelling,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return s;
+      })
+    );
+
+    // Update active canvass items selling price if currently canvassed
+    setCanvass(prev =>
+      prev.map(c =>
+        c.itemId === id
+          ? {
+              ...c,
+              sellingPrice: safeSelling,
+            }
+          : c
+      )
+    );
+  };
+
   const deleteSupplyItem = (id: string) => {
     setSupplies(prev => prev.filter(s => s.id !== id));
   };
@@ -351,6 +383,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       supplies,
       addSupplyItem,
       updateSupplyItem,
+      updatePrices,
       deleteSupplyItem,
       adjustStock,
       importExcelSupplies,

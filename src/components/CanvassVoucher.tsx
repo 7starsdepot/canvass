@@ -13,7 +13,12 @@ import {
   Download,
   ExternalLink,
   Info,
+  Mail,
+  AlertTriangle,
 } from 'lucide-react';
+import { useInventory } from '../context/InventoryContext';
+import { OutOfStockEmailModal } from './OutOfStockEmailModal';
+import { DEPOT_EMAIL, OutOfStockEmailPayload } from '../utils/outOfStockEmail';
 import { CanvassSlip } from '../types';
 import { formatPeso } from '../utils/currency';
 import {
@@ -38,9 +43,11 @@ interface CanvassVoucherModalProps {
 }
 
 const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose }) => {
+  const { supplies } = useInventory();
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [printNotice, setPrintNotice] = useState<string | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const companyName = slip.companyName || '7 Stars School and Office Supplies Depot';
 
@@ -71,6 +78,37 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
   const totalUnits = useMemo(() => {
     return uniqueItems.reduce((acc, it) => acc + it.quantity, 0);
   }, [uniqueItems]);
+
+  // Identify any items in this order that currently have zero stock
+  const outOfStockItems = useMemo(() => {
+    return uniqueItems
+      .filter(item => {
+        const found = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
+        return found ? found.stock <= 0 : false;
+      })
+      .map(item => {
+        const found = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
+        return {
+          genericName: item.genericName,
+          brand: item.brand,
+          sku: item.sku,
+          unit: item.unit,
+          quantity: item.quantity,
+          sellingPrice: item.sellingPrice,
+          currentStock: found?.stock || 0,
+        };
+      });
+  }, [uniqueItems, supplies]);
+
+  const emailPayload: OutOfStockEmailPayload = {
+    toEmail: DEPOT_EMAIL,
+    orderNumber: slip.canvassNumber,
+    customerName: slip.customerName,
+    departmentOrCompany: slip.departmentOrCompany,
+    notes: slip.notes,
+    items: outOfStockItems,
+    source: 'customer_order',
+  };
 
   const handlePrint = () => {
     setPrintNotice('Launching print dialog...');
@@ -181,7 +219,7 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
               title="Copy Summary to Clipboard"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? <Check className="w-3.5 h-3.5 text-blue-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
 
@@ -196,12 +234,23 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
 
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer"
               title="Download print-ready official HTML canvass file"
             >
               {downloaded ? <Check className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
               <span>{downloaded ? 'Downloaded!' : 'Download Sheet'}</span>
             </button>
+
+            {outOfStockItems.length > 0 && (
+              <button
+                onClick={() => setIsEmailModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-xs font-bold text-white shadow-xs transition-colors cursor-pointer border border-red-500/50"
+                title={`Send email notification to ${DEPOT_EMAIL} for ${outOfStockItems.length} out-of-stock items`}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>Email Depot ({outOfStockItems.length} Out of Stock)</span>
+              </button>
+            )}
 
             <button
               onClick={handlePrint}
@@ -221,6 +270,25 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
             </button>
           </div>
         </div>
+
+        {/* Out-of-Stock Alert Bar with direct action */}
+        {outOfStockItems.length > 0 && (
+          <div className="print:hidden bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-b border-red-200 px-4 sm:px-6 py-2.5 text-xs text-red-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>
+                <strong>{outOfStockItems.length} item{outOfStockItems.length > 1 ? 's' : ''} in this canvass slip have 0 stock.</strong> Send requisition email to <strong>{DEPOT_EMAIL}</strong> for warehouse replenishment.
+              </span>
+            </div>
+            <button
+              onClick={() => setIsEmailModalOpen(true)}
+              className="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors self-start sm:self-auto shrink-0"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Send Email to {DEPOT_EMAIL}</span>
+            </button>
+          </div>
+        )}
 
         {/* Notice banner if print dialog feedback is present */}
         {printNotice && (
@@ -420,12 +488,23 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
 
             <button
               onClick={handleDownload}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
               title="Download HTML canvass file for 100% reliable printing"
             >
               <Download className="w-3.5 h-3.5" />
               <span>{downloaded ? 'Downloaded!' : 'Download Sheet'}</span>
             </button>
+
+            {outOfStockItems.length > 0 && (
+              <button
+                onClick={() => setIsEmailModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors border border-red-500/50"
+                title={`Email out-of-stock items in this order to ${DEPOT_EMAIL}`}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>Email Depot ({outOfStockItems.length} Out of Stock)</span>
+              </button>
+            )}
 
             <button
               onClick={handlePrint}
@@ -445,6 +524,13 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
           </div>
         </div>
       </div>
+
+      {/* Out of Stock Email Notification Modal */}
+      <OutOfStockEmailModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        payload={emailPayload}
+      />
     </div>
   );
 };

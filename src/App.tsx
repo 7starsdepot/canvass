@@ -36,7 +36,10 @@ const MainAppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-800 flex flex-col selection:bg-blue-600 selection:text-white font-sans antialiased">
+    <div className="min-h-screen flex flex-col selection:bg-red-600 selection:text-white font-sans antialiased relative">
+      {/* Top Blue & Red Brand Accent Ribbon */}
+      <div className="h-1 bg-gradient-to-r from-blue-700 via-red-600 to-blue-800 w-full fixed top-0 left-0 z-50 shadow-xs" />
+
       {/* Top Navigation */}
       <Navbar
         currentView={currentView}
@@ -62,9 +65,9 @@ const MainAppContent: React.FC = () => {
           <AdminView />
         ) : (
           /* Locked Admin Gateway fallback if user navigates to admin without session */
-          <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-2xl border border-slate-200 shadow-sm text-center">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600 mx-auto mb-4 border border-slate-200">
-              <Lock className="w-6 h-6 text-slate-700" />
+          <div className="max-w-md mx-auto my-12 p-8 bg-white/95 backdrop-blur-xs rounded-2xl border border-slate-200/80 shadow-md text-center">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-600 mx-auto mb-4 border border-red-200">
+              <Lock className="w-6 h-6 text-red-700" />
             </div>
             <h2 className="text-lg font-bold text-slate-900">Admin Authentication Required</h2>
             <p className="text-xs text-slate-500 mt-1 mb-6">
@@ -73,7 +76,7 @@ const MainAppContent: React.FC = () => {
 
             <button
               onClick={handleOpenLogin}
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <Key className="w-4 h-4" />
               <span>Sign In to Admin Portal</span>

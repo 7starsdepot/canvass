@@ -474,21 +474,21 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
         className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[90vh]"
       >
         {/* Header */}
-        <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between shrink-0">
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-red-950 px-6 py-4 text-white flex items-center justify-between shrink-0 border-b border-blue-900/60">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs border border-blue-400/40">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-bold text-sm sm:text-base text-white">Upload Office Supplies Excel File</h3>
-              <p className="text-[11px] sm:text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-blue-200/70">
                 Import inventory using Generic Name, Brand, Description, Unit, No. of Stock, selling price, and Buying price
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -497,21 +497,21 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
         {/* Content Body */}
         <div className="p-6 space-y-5 overflow-y-auto flex-1">
           {/* Instructions and Download Template Card */}
-          <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div>
-              <div className="flex items-center gap-1.5 font-bold text-emerald-950 mb-1">
-                <HelpCircle className="w-4 h-4 text-emerald-700" />
+              <div className="flex items-center gap-1.5 font-bold text-blue-950 mb-1">
+                <HelpCircle className="w-4 h-4 text-blue-700" />
                 <span>Required Excel Column Fields</span>
               </div>
-              <p className="text-emerald-800 leading-relaxed">
-                Your spreadsheet must include columns: <strong className="font-semibold text-emerald-950">Generic Name</strong>, <strong className="font-semibold text-emerald-950">Brand</strong>, <strong className="font-semibold text-emerald-950">Description</strong>, <strong className="font-semibold text-emerald-950">Unit</strong>, <strong className="font-semibold text-emerald-950">No. of Stock</strong>, <strong className="font-semibold text-emerald-950">selling price</strong>, and <strong className="font-semibold text-emerald-950">Buying price</strong>.
+              <p className="text-blue-900 leading-relaxed">
+                Your spreadsheet must include columns: <strong className="font-semibold text-blue-950">Generic Name</strong>, <strong className="font-semibold text-blue-950">Brand</strong>, <strong className="font-semibold text-blue-950">Description</strong>, <strong className="font-semibold text-blue-950">Unit</strong>, <strong className="font-semibold text-blue-950">No. of Stock</strong>, <strong className="font-semibold text-blue-950">selling price</strong>, and <strong className="font-semibold text-blue-950">Buying price</strong>.
               </p>
             </div>
             <button
               onClick={handleDownloadTemplate}
-              className="px-3.5 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100/60 font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-white border border-blue-300 text-blue-800 hover:bg-blue-100 font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
             >
-              <Download className="w-4 h-4 text-emerald-700" />
+              <Download className="w-4 h-4 text-blue-700" />
               <span>Download Excel Template</span>
             </button>
           </div>
@@ -536,8 +536,8 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
               onClick={() => fileInputRef.current?.click()}
               className={`p-8 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${
                 dragActive
-                  ? 'border-emerald-500 bg-emerald-50/50'
-                  : 'border-slate-300 hover:border-emerald-500 bg-slate-50/70 hover:bg-slate-50'
+                  ? 'border-blue-500 bg-blue-50/50'
+                  : 'border-slate-300 hover:border-blue-500 bg-slate-50/70 hover:bg-slate-50'
               }`}
             >
               <input
@@ -547,7 +547,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center mx-auto mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center mx-auto mb-3">
                 <Upload className="w-6 h-6" />
               </div>
               <h4 className="text-sm font-bold text-slate-800">
@@ -557,7 +557,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                 Supports Microsoft Excel (.xlsx, .xls) and Comma-Separated Values (.csv)
               </p>
               {isProcessing && (
-                <p className="text-xs text-emerald-600 font-semibold mt-3 animate-pulse">
+                <p className="text-xs text-blue-600 font-semibold mt-3 animate-pulse">
                   Parsing spreadsheet contents...
                 </p>
               )}
@@ -567,7 +567,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-100 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center">
                     <FileSpreadsheet className="w-5 h-5" />
                   </div>
                   <div>
@@ -581,7 +581,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleReset}
-                    className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50"
+                    className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 cursor-pointer"
                   >
                     Change File
                   </button>
@@ -599,7 +599,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                       value="append"
                       checked={importMode === 'append'}
                       onChange={() => setImportMode('append')}
-                      className="text-emerald-600 focus:ring-emerald-500"
+                      className="text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-slate-800 font-medium">
                       <strong>Append</strong> to current inventory (keep existing items)
@@ -613,7 +613,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                       value="replace"
                       checked={importMode === 'replace'}
                       onChange={() => setImportMode('replace')}
-                      className="text-rose-600 focus:ring-rose-500"
+                      className="text-red-600 focus:ring-red-500"
                     />
                     <span className="text-slate-800 font-medium">
                       <strong>Replace</strong> entire inventory (overwrite current records)
@@ -669,11 +669,11 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                           </td>
                           <td className="py-2 px-3 text-center">
                             {row.isValid ? (
-                              <span className="inline-flex items-center text-[10px] text-emerald-700 font-semibold px-2 py-0.5 rounded bg-emerald-50">
+                              <span className="inline-flex items-center text-[10px] text-blue-700 font-semibold px-2 py-0.5 rounded bg-blue-50 border border-blue-200">
                                 Valid
                               </span>
                             ) : (
-                              <span className="inline-flex items-center text-[10px] text-rose-700 font-semibold px-2 py-0.5 rounded bg-rose-50" title={row.errors.join(', ')}>
+                              <span className="inline-flex items-center text-[10px] text-red-700 font-semibold px-2 py-0.5 rounded bg-red-50 border border-red-200" title={row.errors.join(', ')}>
                                 {row.errors[0]}
                               </span>
                             )}
@@ -692,7 +692,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
         <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-between shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors"
+            className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -701,7 +701,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
             <button
               onClick={handleConfirmImport}
               disabled={validCount === 0}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-blue-500/50"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Import {validCount} Supplies to Inventory</span>

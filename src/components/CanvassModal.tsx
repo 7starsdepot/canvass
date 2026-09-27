@@ -38,13 +38,19 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { canvass, updateCanvassQty, removeFromCanvass, clearCanvass, generateCanvassSlip } =
+  const { canvass, updateCanvassQty, removeFromCanvass, clearCanvass, generateCanvassSlip, supplies } =
     useInventory();
 
   const [customerName, setCustomerName] = useState('');
   const [departmentOrCompany, setDepartmentOrCompany] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Check which items in current canvass have zero stock in warehouse
+  const outOfStockItems = canvass.filter(item => {
+    const supply = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
+    return supply ? supply.stock <= 0 : false;
+  });
 
   // Selling Price total only (Buying price is strictly omitted from customer view)
   const grandTotal = canvass.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
@@ -83,24 +89,24 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
         className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[85vh]"
       >
         {/* Header */}
-        <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between shrink-0">
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-red-950 px-6 py-4 text-white flex items-center justify-between shrink-0 border-b border-blue-900/60">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-xs border border-red-400/40">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 block">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-red-400 block">
                 7 Stars School and Office Supplies Depot
               </span>
               <h3 className="text-base font-bold text-white">Price Canvass Sheet</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-blue-200/70">
                 {canvass.length} item{canvass.length !== 1 ? 's' : ''} in your active canvass quotation
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -112,6 +118,21 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-xs font-medium">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Out of Stock Notice Banner */}
+          {outOfStockItems.length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-950">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-red-700 block font-bold">
+                  {outOfStockItems.length} item{outOfStockItems.length > 1 ? 's' : ''} in this order currently out of stock (0 Available)
+                </strong>
+                <span className="text-slate-600 mt-0.5 block">
+                  You can still include them in your quotation. Once generated, you can send an order email to <strong className="text-red-700 font-mono">sevenstarsdepot@yahoo.com</strong> to request depot restocking.
+                </span>
+              </div>
             </div>
           )}
 
@@ -144,14 +165,18 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
               <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
                 {canvass.map(item => {
                   const lineTotal = item.sellingPrice * item.quantity;
+                  const supply = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
+                  const isItemZeroStock = supply ? supply.stock <= 0 : false;
 
                   return (
                     <div
                       key={item.itemId}
-                      className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isItemZeroStock ? 'bg-red-50/20' : ''
+                      }`}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-sm text-slate-900 truncate">
                             {item.genericName}
                           </span>
@@ -164,6 +189,11 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                           <span className="text-[11px] font-mono text-slate-400">
                             {item.sku}
                           </span>
+                          {isItemZeroStock && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-200">
+                              0 Stock (Out of Stock)
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
                           <span>Unit: <strong className="text-slate-700">{item.unit}</strong></span>
@@ -221,7 +251,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
               <div className="mt-3 flex justify-end">
                 <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-right">
                   <span className="text-xs text-slate-500 mr-2">Estimated Canvass Total:</span>
-                  <span className="font-mono font-black text-base text-blue-700">
+                  <span className="font-mono font-black text-base text-red-700">
                     {formatPeso(grandTotal)}
                   </span>
                 </div>
@@ -248,7 +278,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                     value={customerName}
                     onChange={e => setCustomerName(e.target.value)}
                     placeholder="e.g., Jennifer Cruz (or leave blank)"
-                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
               </div>
@@ -265,7 +295,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                     value={departmentOrCompany}
                     onChange={e => setDepartmentOrCompany(e.target.value)}
                     placeholder="e.g., San Juan Elementary / Accounting"
-                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
               </div>
@@ -281,7 +311,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 placeholder="e.g., Supplies estimation for Q3 / School term"
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
           </div>
@@ -291,7 +321,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -299,7 +329,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
               type="submit"
               disabled={canvass.length === 0}
               id="generate-canvass-btn"
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-red-500/50"
             >
               <FileCheck className="w-4 h-4" />
               <span>Generate Canvass Sheet</span>
