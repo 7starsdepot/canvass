@@ -1,6 +1,7 @@
 import React from 'react';
 import { Package, ShieldCheck, FileText, User, LogOut, CheckCircle2, Store, Star, Lock } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
+import { SevenStarsMark } from './Logo';
 
 interface NavbarProps {
   currentView: 'customer' | 'admin';
@@ -15,7 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCanvass,
   onOpenLogin,
 }) => {
-  const { canvass, isAdmin, adminUsername, adminLogout } = useInventory();
+  const { canvass, isAdmin, adminUsername, adminLogout, isCentralSyncActive } = useInventory();
   const totalCanvassCount = canvass.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleAdminClick = () => {
@@ -33,34 +34,47 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
           {/* Brand Logo & Name */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white shadow-md border border-red-500 shrink-0">
-              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+            {/* Official 7-Stars Rosette Emblem */}
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-md border border-blue-500/50 p-1 shrink-0">
+              <SevenStarsMark size={32} strokeColor="#38bdf8" strokeWidth={3.8} />
             </div>
 
             <div className="min-w-0">
               {/* Mobile compact title */}
               <div className="sm:hidden">
                 <div className="font-black text-sm tracking-tight text-white flex items-center gap-1 truncate">
-                  <span className="text-red-500 font-extrabold">7 Stars</span>
-                  <Star className="w-3 h-3 fill-red-500 text-red-500 shrink-0" />
+                  <span className="text-blue-400 font-extrabold">7 Stars</span>
                   <span className="text-slate-100">Depot</span>
                 </div>
-                <p className="text-[10px] text-blue-200/70 truncate">School & Office Supplies</p>
+                <p className="text-[10px] text-blue-200/70 truncate">Price Canvass and Inventory</p>
               </div>
 
-              {/* Tablet/Desktop full title */}
+              {/* Tablet/Desktop full title matching official logo */}
               <div className="hidden sm:block">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-black text-base sm:text-lg tracking-tight text-white whitespace-nowrap flex items-center gap-1">
-                    <span className="text-red-500 font-extrabold flex items-center gap-0.5">
-                      7 Stars School and Office Supplies Depot <Star className="w-3.5 h-3.5 fill-red-500 text-red-500 inline" />
-                    </span>
-                    <span className="hidden xs:inline">Supplies</span>
-                  </span>
+                <div className="flex items-center gap-1 flex-wrap font-black text-sm sm:text-base tracking-tight leading-none">
+                  <span className="text-red-500 font-extrabold">7</span>
+                  <span className="text-blue-400 font-extrabold">Stars</span>
+                  <span className="text-red-500 font-extrabold">School</span>
+                  <span className="text-blue-400 font-extrabold">and</span>
+                  <span className="text-red-500 font-extrabold">Office</span>
+                  <span className="text-blue-400 font-extrabold">Supplies</span>
+                  <span className="text-red-500 font-extrabold">Depot</span>
                 </div>
-                <p className="text-[11px] text-blue-200/70">
-                  Price Canvass and Inventory
-                </p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <p className="text-[11px] text-blue-200/70">
+                    Price Canvass and Inventory
+                  </p>
+                  <span className="text-slate-500">•</span>
+                  <span className="text-[10px] italic text-blue-300/80 font-medium">
+                    ---
+                  </span>
+                  {isCentralSyncActive && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[9.5px] font-semibold text-emerald-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      --
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -8,11 +8,13 @@ import {
   Building,
   User,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { CanvassSlip } from '../types';
 import { formatPeso } from '../utils/currency';
+import { AddUnlistedItemModal } from './AddUnlistedItemModal';
 
 interface CanvassModalProps {
   isOpen: boolean;
@@ -45,12 +47,16 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
   const [departmentOrCompany, setDepartmentOrCompany] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isAddUnlistedOpen, setIsAddUnlistedOpen] = useState(false);
 
-  // Check which items in current canvass have zero stock in warehouse
+  // Check which items in current canvass have zero stock in warehouse (excluding unlisted special requests)
   const outOfStockItems = canvass.filter(item => {
+    if (item.isCustomUnlisted) return false;
     const supply = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
     return supply ? supply.stock <= 0 : false;
   });
+
+  const unlistedItems = canvass.filter(item => item.isCustomUnlisted);
 
   // Selling Price total only (Buying price is strictly omitted from customer view)
   const grandTotal = canvass.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
@@ -136,30 +142,63 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
             </div>
           )}
 
+          {/* Unlisted / Special Order Items Banner */}
+          {unlistedItems.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-950">
+              <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-amber-800 block font-bold">
+                  {unlistedItems.length} Special Order / Unlisted Supply Item{unlistedItems.length > 1 ? 's' : ''} Included
+                </strong>
+                <span className="text-amber-900/80 mt-0.5 block">
+                  These items will be marked as [Special Request / Unlisted] on your Price Canvass Quotation so 7 Stars Depot staff can confirm sourcing and formal pricing.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Canvass Items Table / List */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 Canvassed Items ({canvass.length})
               </label>
-              {canvass.length > 0 && (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={clearCanvass}
-                  className="text-xs text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
+                  onClick={() => setIsAddUnlistedOpen(true)}
+                  className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                 >
-                  Clear all
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Unlisted Item</span>
                 </button>
-              )}
+                {canvass.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearCanvass}
+                    className="text-xs text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
 
             {canvass.length === 0 ? (
               <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
                 <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm font-semibold text-slate-700">Your Canvass is Empty</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Browse the office supplies catalog and click "Add to Canvass" on the items you want quoted.
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  Browse the catalog or add unlisted custom items directly to request a price quotation.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setIsAddUnlistedOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Unlisted Item</span>
+                </button>
               </div>
             ) : (
               <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
@@ -189,6 +228,12 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                           <span className="text-[11px] font-mono text-slate-400">
                             {item.sku}
                           </span>
+                          {item.isCustomUnlisted && (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold border border-amber-300 flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                              Special Request / Unlisted
+                            </span>
+                          )}
                           {isItemZeroStock && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-200">
                               0 Stock (Out of Stock)
@@ -197,10 +242,25 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
                           <span>Unit: <strong className="text-slate-700">{item.unit}</strong></span>
-                          <span>Price: <strong className="text-slate-800 font-mono">{formatPeso(item.sellingPrice)}</strong></span>
+                          <span>
+                            Price:{' '}
+                            <strong className="text-slate-800 font-mono">
+                              {item.sellingPrice > 0 ? (
+                                <>
+                                  {formatPeso(item.sellingPrice)}
+                                  {item.isCustomUnlisted && <span className="text-[10px] font-normal text-slate-500 ml-1">(Est.)</span>}
+                                </>
+                              ) : (
+                                <span className="text-amber-700 font-bold">To Be Quoted</span>
+                              )}
+                            </strong>
+                          </span>
                         </div>
                         {item.description && (
                           <p className="text-[11px] text-slate-400 truncate mt-0.5">{item.description}</p>
+                        )}
+                        {item.customerNotes && (
+                          <p className="text-[11px] text-amber-800 italic mt-0.5">Note: "{item.customerNotes}"</p>
                         )}
                       </div>
 
@@ -228,7 +288,9 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
 
                         <div className="text-right min-w-[70px]">
                           <span className="font-mono font-bold text-sm text-slate-900">
-                            {formatPeso(lineTotal)}
+                            {lineTotal > 0 ? formatPeso(lineTotal) : (
+                              <span className="text-[11px] font-semibold text-amber-700 italic">For Quote</span>
+                            )}
                           </span>
                         </div>
 
@@ -336,6 +398,12 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
             </button>
           </div>
         </form>
+
+        {/* Modal for adding unlisted supply items */}
+        <AddUnlistedItemModal
+          isOpen={isAddUnlistedOpen}
+          onClose={() => setIsAddUnlistedOpen(false)}
+        />
       </div>
     </div>
   );

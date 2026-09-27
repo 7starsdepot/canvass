@@ -21,6 +21,7 @@ import { OutOfStockEmailModal } from './OutOfStockEmailModal';
 import { DEPOT_EMAIL, OutOfStockEmailPayload } from '../utils/outOfStockEmail';
 import { CanvassSlip } from '../types';
 import { formatPeso } from '../utils/currency';
+import { SevenStarsLogo, SevenStarsMark } from './Logo';
 import {
   executePrintCanvass,
   downloadPrintableCanvassHtml,
@@ -311,19 +312,27 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4 mb-4 print:pb-2.5 print:mb-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Building2 className="w-4 h-4 text-blue-700 shrink-0" />
-                  <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-blue-700 print:text-black">
-                    {companyName}
-                  </span>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 p-1 rounded-xl border border-slate-200 bg-white flex items-center justify-center shrink-0 shadow-xs print:border-none print:p-0">
+                  <SevenStarsMark size={44} strokeColor="#0047FF" strokeWidth={3.8} />
                 </div>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 print:text-lg">
-                  PRICE CANVASS SHEET
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5 print:text-[10px]">
-                  Official School & Office Supplies Price Quotation
-                </p>
+                <div>
+                  <div className="flex items-center gap-1 font-black text-xs sm:text-sm tracking-tight">
+                    <span className="text-[#E31837]">7</span>
+                    <span className="text-[#0047FF]">Stars</span>
+                    <span className="text-[#E31837]">School</span>
+                    <span className="text-[#0047FF]">and</span>
+                    <span className="text-[#E31837]">Office</span>
+                    <span className="text-[#0047FF]">Supplies</span>
+                    <span className="text-[#E31837]">Depot</span>
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 print:text-lg">
+                    PRICE CANVASS SHEET
+                  </h1>
+                  <p className="text-xs text-slate-500 mt-0.5 print:text-[10px]">
+                    Official School & Office Supplies Price Quotation
+                  </p>
+                </div>
               </div>
               <div className="text-left sm:text-right">
                 <div className="inline-block px-3 py-1 rounded bg-slate-100 border border-slate-300 font-mono font-bold text-slate-900 text-sm print:text-xs print:px-2 print:py-0.5 mb-1">
@@ -400,10 +409,24 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
                 {uniqueItems.map((item, index) => {
                   const lineTotal = item.quantity * item.sellingPrice;
                   return (
-                    <tr key={item.itemId || index} className="hover:bg-slate-50/50 print:hover:bg-transparent">
+                    <tr key={item.itemId || index} className={`hover:bg-slate-50/50 print:hover:bg-transparent ${item.isCustomUnlisted ? 'bg-amber-50/20' : ''}`}>
                       <td className="py-2 px-1.5 print:py-1 text-slate-400 font-mono">{index + 1}</td>
-                      <td className="py-2 px-1.5 print:py-1 font-mono text-slate-500">{item.sku || `ITEM-${index + 1}`}</td>
-                      <td className="py-2 px-1.5 print:py-1 font-bold text-slate-900">{item.genericName}</td>
+                      <td className="py-2 px-1.5 print:py-1 font-mono text-slate-500">
+                        <span>{item.sku || `ITEM-${index + 1}`}</span>
+                        {item.isCustomUnlisted && (
+                          <span className="block text-[8.5px] print:text-[8px] font-bold text-amber-700 uppercase tracking-tighter">
+                            [Special Order]
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 px-1.5 print:py-1 font-bold text-slate-900">
+                        <span>{item.genericName}</span>
+                        {item.customerNotes && (
+                          <span className="block text-[9.5px] print:text-[8.5px] font-normal text-slate-500 italic mt-0.5">
+                            "{item.customerNotes}"
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 px-1.5 print:py-1 text-slate-700">{item.brand || '—'}</td>
                       <td className="py-2 px-1.5 print:py-1 text-slate-500 max-w-[140px] truncate print:max-w-none print:whitespace-normal">
                         {item.description || '—'}
@@ -411,10 +434,21 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
                       <td className="py-2 px-1.5 print:py-1 text-slate-600">{item.unit}</td>
                       <td className="py-2 px-1.5 print:py-1 text-center font-bold text-slate-800">{item.quantity}</td>
                       <td className="py-2 px-1.5 print:py-1 text-right font-mono text-slate-700">
-                        {formatPeso(item.sellingPrice)}
+                        {item.sellingPrice > 0 ? (
+                          <>
+                            {formatPeso(item.sellingPrice)}
+                            {item.isCustomUnlisted && <span className="block text-[8.5px] text-slate-400 font-sans">(Est.)</span>}
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-amber-800 font-sans font-bold">For Quote</span>
+                        )}
                       </td>
                       <td className="py-2 px-1.5 print:py-1 text-right font-mono font-bold text-slate-900">
-                        {formatPeso(lineTotal)}
+                        {lineTotal > 0 ? (
+                          formatPeso(lineTotal)
+                        ) : (
+                          <span className="text-[10px] text-slate-500 font-sans font-semibold">TBD</span>
+                        )}
                       </td>
                     </tr>
                   );

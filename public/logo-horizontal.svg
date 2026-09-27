@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 120" width="100%" height="100%">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@700&amp;family=Outfit:wght@800;900&amp;display=swap');
+      .logo-title-h {
+        font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 900;
+        letter-spacing: -0.5px;
+      }
+      .logo-tagline-h {
+        font-family: 'Caveat', 'Segoe Print', cursive, sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        fill: #0030B0;
+      }
+    </style>
+  </defs>
+
+  <!-- Starburst Mark on Left -->
+  <g transform="translate(10, 0)">
+    <polygon points="60.00,101.00 53.53,85.90 37.17,84.42 49.54,73.60 45.89,57.58 60.00,66.00 74.11,57.58 70.46,73.60 82.83,84.42 66.47,85.90" fill="none" stroke="#0047FF" stroke-width="2.0" stroke-linejoin="round" />
+    <polygon points="27.94,85.56 35.72,71.09 26.68,57.38 42.84,60.30 53.09,47.46 55.31,63.74 70.68,69.52 55.89,76.66 55.14,93.07 43.78,81.20" fill="none" stroke="#0047FF" stroke-width="2.0" stroke-linejoin="round" />
+    <polygon points="20.03,50.88 36.19,47.93 41.27,32.31 49.07,46.77 65.49,46.78 54.15,58.66 59.22,74.29 44.41,67.17 31.12,76.82 33.31,60.54" fill="none" stroke="#0047FF" stroke-width="2.0" stroke-linejoin="round" />
+    <polygon points="42.21,23.06 54.59,33.86 69.97,28.10 63.52,43.21 73.76,56.06 57.40,54.59 48.34,68.30 44.67,52.29 28.84,47.91 42.94,39.47" fill="none" stroke="#0047FF" stroke-width="2.0" stroke-linejoin="round" />
+    <polygon points="77.79,23.06 77.06,39.47 91.16,47.91 75.33,52.29 71.66,68.30 62.60,54.59 46.24,56.06 56.48,43.21 50.03,28.10 65.41,33.86" fill="none" stroke="#0047FF" stroke-width="2.0" stroke-linejoin="round" />
+    <polygon points="99.97,50.88 86.69,60.54 88.88,76.82 75.59,67.17 60.78,74.29 65.85,58.66 54.51,46.78 70.93,46.77 78.73,32.31 83.81,47.93" fill="none" stroke="#0047FF" stroke-width="2.0" stroke-linejoin="round" />
+    <polygon points="92.06,85.56 76.22,81.20 64.86,93.07 64.11,76.66 49.32,69.52 64.69,63.74 66.91,47.46 77.16,60.30 93.32,57.38 84.28,71.09" fill="none" stroke="#0047FF" stroke-width="2.0" stroke-linejoin="round" />
+  </g>
+
+  <!-- Typography on Right -->
+  <g transform="translate(145, 45)" class="logo-title-h" font-size="22">
+    <text y="0">
+      <tspan fill="#E31837">7 </tspan>
+      <tspan fill="#0047FF">Stars </tspan>
+      <tspan fill="#E31837">School </tspan>
+      <tspan fill="#0047FF">and</tspan>
+    </text>
+  </g>
+  <g transform="translate(145, 76)" class="logo-title-h" font-size="25">
+    <text y="0">
+      <tspan fill="#E31837">Office </tspan>
+      <tspan fill="#0047FF">Supplies </tspan>
+      <tspan fill="#E31837">Depot</tspan>
+    </text>
+  </g>
+  <g transform="translate(385, 102)" text-anchor="end">
+    <text class="logo-tagline-h">Your supply source.</text>
+  </g>
+</svg>

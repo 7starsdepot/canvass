@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
-import { SupplyItem, CanvassItem, CanvassSlip } from '../types';
+import { SupplyItem, CanvassItem, CanvassSlip, CustomUnlistedInput } from '../types';
 import initialSuppliesData from '../data/initialSupplies.json';
+import {
+  subscribeToCentralSupplies,
+  subscribeToCentralCanvasses,
+  saveCentralSupply,
+  updateCentralPrices,
+  adjustCentralStock,
+  deleteCentralSupply,
+  batchSaveCentralSupplies,
+  clearAllCentralSupplies,
+  saveCentralCanvass,
+  deleteCentralCanvass,
+  seedInitialCentralDataIfEmpty,
+} from '../services/firestoreService';
 
 interface CanvassDraftInput {
   customerName: string;
@@ -14,9 +27,8 @@ interface InventoryContextType {
   // Inventory (Admin & Customer Catalog)
   supplies: SupplyItem[];
   isPriceListLoaded: boolean;
-  isSyncing: boolean;
+  isCentralSyncActive: boolean;
   lastRecordedTime: string | null;
-  refreshSupplies: () => Promise<void>;
   addSupplyItem: (item: Omit<SupplyItem, 'id' | 'updatedAt'>) => void;
   updateSupplyItem: (item: SupplyItem) => void;
   updatePrices: (id: string, buyingPrice: number, sellingPrice: number) => void;
@@ -25,10 +37,11 @@ interface InventoryContextType {
   importExcelSupplies: (items: Omit<SupplyItem, 'id' | 'updatedAt'>[], mode: 'append' | 'replace') => number;
   clearAllSupplies: () => void;
 
-  // Canvass (Customer View Only - Has nothing to do with admin inventory)
+  // Canvass (Customer View Only - Shared & Saved in Central DB)
   canvass: CanvassItem[];
   savedCanvasses: CanvassSlip[];
   addToCanvass: (supply: SupplyItem, quantity?: number) => void;
+  addCustomUnlistedItem: (custom: CustomUnlistedInput) => void;
   updateCanvassQty: (itemId: string, quantity: number) => void;
   removeFromCanvass: (itemId: string) => void;
   clearCanvass: () => void;
@@ -62,11 +75,10 @@ const ALL_POSSIBLE_SUPPLY_KEYS = [
 ];
 
 /**
- * Robust initial supplies loader that inspects all previous storage keys,
- * and falls back to bundled recorded master price list (522 items)
- * so that when the app opens on a phone or new device, data is NEVER empty or reset.
+ * Robust initial supplies fallback loader that inspects localStorage
+ * and falls back to bundled master price list while Firestore finishes its initial snapshot.
  */
-function loadInitialSupplies(): SupplyItem[] {
+function loadFallbackSupplies(): SupplyItem[] {
   try {
     for (const key of ALL_POSSIBLE_SUPPLY_KEYS) {
       const stored = localStorage.getItem(key);
@@ -89,9 +101,6 @@ function loadInitialSupplies(): SupplyItem[] {
     console.warn('Notice loading initial supplies from localStorage:', err);
   }
 
-  // Pre-loaded recorded supplies from uploaded master price list:
-  // When opened on a phone, new browser profile, or mobile device without prior localStorage,
-  // this guarantees the uploaded 522 items are instantly displayed and NEVER empty!
   if (Array.isArray(initialSuppliesData) && initialSuppliesData.length > 0) {
     return initialSuppliesData as SupplyItem[];
   }
@@ -100,9 +109,10 @@ function loadInitialSupplies(): SupplyItem[] {
 }
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. Supplies State: Read synchronously from all recorded storage keys or bundled master data
-  const [supplies, setSupplies] = useState<SupplyItem[]>(() => loadInitialSupplies());
-  const [isPriceListLoaded, setIsPriceListLoaded] = useState<boolean>(true);
+  // 1. Supplies State: Centralized Firestore catalog with instant local fallback
+  const [supplies, setSupplies] = useState<SupplyItem[]>(() => loadFallbackSupplies());
+  const [isPriceListLoaded, setIsPriceListLoaded] = useState<boolean>(false);
+  const [isCentralSyncActive, setIsCentralSyncActive] = useState<boolean>(false);
   const [lastRecordedTime, setLastRecordedTime] = useState<string | null>(() => {
     try {
       return (
@@ -114,10 +124,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   });
 
-  // Flag to prevent empty initial renders from accidentally overwriting persistent storage
-  const isInitializedRef = useRef<boolean>(false);
-
-  // 2. Canvass Items State (Customer View Only)
+  // 2. Canvass Items State (Active cart in session)
   const [canvass, setCanvass] = useState<CanvassItem[]>(() => {
     try {
       const stored = localStorage.getItem(CANVASS_ITEMS_STORAGE_KEY);
@@ -131,7 +138,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return [];
   });
 
-  // 3. Saved Canvasses History (Customer View Only)
+  // 3. Saved Canvasses History (Centralized in Firestore)
   const [savedCanvasses, setSavedCanvasses] = useState<CanvassSlip[]>(() => {
     try {
       const stored = localStorage.getItem(SAVED_CANVASSES_STORAGE_KEY);
@@ -162,254 +169,80 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   });
 
-  /**
-   * Universal persistence helper:
-   * Writes the recorded price list to:
-   * 1. Primary localStorage key (office_supplies_data_v2)
-   * 2. Permanent backup localStorage keys (7stars_recorded_supplies_price_list, office_supplies_data)
-   * 3. Server persistent API (/api/supplies)
-   * 4. Timestamp metadata
-   */
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
-
-  /**
-   * Helper to write recorded supplies to all localStorage keys
-   */
-  const persistLocalCache = (items: SupplyItem[], recordedAt?: string) => {
+  // Cache helper to keep local storage updated in background
+  const cacheLocally = (items: SupplyItem[]) => {
     try {
       localStorage.setItem(SUPPLIES_STORAGE_KEY, JSON.stringify(items));
       localStorage.setItem(SUPPLIES_BACKUP_KEY, JSON.stringify(items));
-      localStorage.setItem('office_supplies_data', JSON.stringify(items));
-      if (recordedAt) {
-        localStorage.setItem(LAST_RECORDED_KEY, recordedAt);
-      }
-    } catch (err) {
-      console.warn('localStorage save warning:', err);
-    }
-  };
-
-  /**
-   * Universal persistence helper:
-   * Writes the recorded price list to:
-   * 1. Primary localStorage key (office_supplies_data_v2)
-   * 2. Permanent backup localStorage keys (7stars_recorded_supplies_price_list, office_supplies_data)
-   * 3. Server persistent API (/api/supplies) with cache-busting
-   * 4. Timestamp metadata
-   */
-  const persistSupplies = (itemsToPersist: SupplyItem[], updateTimestamp = true) => {
-    if (!itemsToPersist || !Array.isArray(itemsToPersist)) return;
-
-    const recordedAt = new Date().toISOString();
-    if (updateTimestamp && itemsToPersist.length > 0) {
-      setLastRecordedTime(recordedAt);
-    }
-
-    persistLocalCache(itemsToPersist, updateTimestamp && itemsToPersist.length > 0 ? recordedAt : undefined);
-
-    // Persist to server backend API immediately
-    try {
-      fetch('/api/supplies', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store',
-          Pragma: 'no-cache',
-        },
-        body: JSON.stringify(itemsToPersist),
-      }).catch(err => {
-        console.warn('Notice saving supplies to backend:', err);
-      });
+      const now = new Date().toISOString();
+      setLastRecordedTime(now);
+      localStorage.setItem(LAST_RECORDED_KEY, now);
     } catch {
-      // ignore
+      // ignore storage quota issues
     }
   };
 
   /**
-   * Synchronization with Persistent Backend:
-   * Fetches latest supplies from /api/supplies.
-   * If server has updated prices or items, immediately synchronizes local state
-   * so other devices see the new prices in real-time.
-   */
-  const syncWithPersistentBackend = async (force = false) => {
-    setIsSyncing(true);
-    try {
-      const res = await fetch(`/api/supplies?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store',
-          Pragma: 'no-cache',
-        },
-      });
-
-      if (res.ok) {
-        const serverItems = await res.json();
-        if (Array.isArray(serverItems) && serverItems.length > 0) {
-          setSupplies(prev => {
-            // Check if server data differs from current device state (price changes, stock changes, etc.)
-            const hasDifference =
-              prev.length !== serverItems.length ||
-              serverItems.some((sItem: SupplyItem, idx: number) => {
-                const pItem = prev[idx];
-                if (!pItem) return true;
-                return (
-                  pItem.id !== sItem.id ||
-                  pItem.sellingPrice !== sItem.sellingPrice ||
-                  pItem.buyingPrice !== sItem.buyingPrice ||
-                  pItem.stock !== sItem.stock ||
-                  pItem.name !== sItem.name ||
-                  pItem.updatedAt !== sItem.updatedAt
-                );
-              });
-
-            if (hasDifference || prev.length === 0 || force) {
-              persistLocalCache(serverItems);
-              return serverItems;
-            }
-            return prev;
-          });
-
-          // Also keep active canvass items selling prices updated to latest prices
-          setCanvass(prevCanvass => {
-            if (prevCanvass.length === 0) return prevCanvass;
-            let changed = false;
-            const nextCanvass = prevCanvass.map(c => {
-              const matched = serverItems.find((s: SupplyItem) => s.id === c.itemId || s.sku === c.sku);
-              if (matched && matched.sellingPrice !== c.sellingPrice) {
-                changed = true;
-                return { ...c, sellingPrice: matched.sellingPrice };
-              }
-              return c;
-            });
-            return changed ? nextCanvass : prevCanvass;
-          });
-        } else if (supplies.length > 0) {
-          // If server was empty but local has data, seed the server
-          persistSupplies(supplies, false);
-        }
-      }
-    } catch {
-      // Fallback to static public file if API route had an issue
-      try {
-        const staticRes = await fetch(`/recorded_price_list.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (staticRes.ok) {
-          const data = await staticRes.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setSupplies(prev => {
-              if (prev.length === 0 || prev.length !== data.length || force) {
-                persistLocalCache(data);
-                return data;
-              }
-              return prev;
-            });
-          }
-        }
-      } catch {
-        // ignore
-      }
-    } finally {
-      isInitializedRef.current = true;
-      setIsPriceListLoaded(true);
-      setIsSyncing(false);
-    }
-
-    // Also sync saved orders from backend if available
-    try {
-      const ordersRes = await fetch(`/api/orders?t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
-      if (ordersRes.ok) {
-        const serverOrders = await ordersRes.json();
-        if (Array.isArray(serverOrders) && serverOrders.length > 0) {
-          setSavedCanvasses(prev => {
-            if (prev.length !== serverOrders.length || JSON.stringify(prev) !== JSON.stringify(serverOrders)) {
-              try {
-                localStorage.setItem(SAVED_CANVASSES_STORAGE_KEY, JSON.stringify(serverOrders));
-              } catch {}
-              return serverOrders;
-            }
-            return prev;
-          });
-        }
-      }
-    } catch {
-      // ignore
-    }
-  };
-
-  /**
-   * Manual refresh trigger accessible across views
-   */
-  const refreshSupplies = async () => {
-    await syncWithPersistentBackend(true);
-  };
-
-  /**
-   * On Mount:
-   * 1. Initial sync immediately
-   * 2. Re-sync on tab focus / visibility change (e.g. when opening browser on phone)
-   * 3. Background polling every 5 seconds for real-time multi-device price updates
+   * CENTRALIZED REAL-TIME FIRESTORE SYNCHRONIZATION
+   * Subscribes to live changes on the centralized Firestore 'supplies' collection.
+   * Any change made on any device immediately syncs to all users without manual refresh.
    */
   useEffect(() => {
-    syncWithPersistentBackend();
+    let isMounted = true;
 
-    const handleFocusOrVisible = () => {
-      if (document.visibilityState === 'visible') {
-        syncWithPersistentBackend();
-      }
-    };
+    // First, verify and seed initial catalog if the central database is empty
+    const defaultCatalog = loadFallbackSupplies();
+    seedInitialCentralDataIfEmpty(defaultCatalog).catch(err => {
+      console.warn('Central catalog seeding check notice:', err);
+    });
 
-    window.addEventListener('focus', handleFocusOrVisible);
-    window.addEventListener('visibilitychange', handleFocusOrVisible);
+    // Subscribe to live updates from the central database
+    const unsubscribeSupplies = subscribeToCentralSupplies(
+      centralSupplies => {
+        if (!isMounted) return;
 
-    const pollInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        syncWithPersistentBackend();
-      }
-    }, 5000);
-
-    return () => {
-      window.removeEventListener('focus', handleFocusOrVisible);
-      window.removeEventListener('visibilitychange', handleFocusOrVisible);
-      clearInterval(pollInterval);
-    };
-  }, []);
-
-  /**
-   * Listen for storage events across browser tabs/windows
-   * so edits in one window immediately reflect in all open windows
-   */
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === SUPPLIES_STORAGE_KEY || e.key === SUPPLIES_BACKUP_KEY) {
-        if (e.newValue) {
-          try {
-            const parsed = JSON.parse(e.newValue);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setSupplies(parsed);
-            }
-          } catch {
-            // ignore
-          }
+        if (centralSupplies.length > 0) {
+          setSupplies(centralSupplies);
+          cacheLocally(centralSupplies);
+        } else if (defaultCatalog.length > 0) {
+          // If Firestore is still being seeded, seed now
+          seedInitialCentralDataIfEmpty(defaultCatalog);
         }
+
+        setIsPriceListLoaded(true);
+        setIsCentralSyncActive(true);
+      },
+      error => {
+        console.warn('Central database real-time sync notification:', error);
+        // Even if offline, indicate fallback list is ready
+        setIsPriceListLoaded(true);
       }
-      if (e.key === SAVED_CANVASSES_STORAGE_KEY && e.newValue) {
+    );
+
+    // Subscribe to live canvass quotations
+    const unsubscribeCanvasses = subscribeToCentralCanvasses(
+      centralSlips => {
+        if (!isMounted) return;
+        setSavedCanvasses(centralSlips);
         try {
-          const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed)) {
-            setSavedCanvasses(parsed);
-          }
+          localStorage.setItem(SAVED_CANVASSES_STORAGE_KEY, JSON.stringify(centralSlips));
         } catch {
           // ignore
         }
+      },
+      error => {
+        console.warn('Central canvass quotation listener notice:', error);
       }
-    };
+    );
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      isMounted = false;
+      unsubscribeSupplies();
+      unsubscribeCanvasses();
+    };
   }, []);
 
-  // Sync active canvass items to localStorage
+  // Sync active canvass draft to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(CANVASS_ITEMS_STORAGE_KEY, JSON.stringify(canvass));
@@ -417,27 +250,6 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // ignore
     }
   }, [canvass]);
-
-  // Sync saved canvasses to localStorage and backend
-  useEffect(() => {
-    try {
-      localStorage.setItem(SAVED_CANVASSES_STORAGE_KEY, JSON.stringify(savedCanvasses));
-    } catch {
-      // ignore
-    }
-
-    if (savedCanvasses.length > 0) {
-      try {
-        fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(savedCanvasses),
-        }).catch(() => {});
-      } catch {
-        // ignore
-      }
-    }
-  }, [savedCanvasses]);
 
   // Admin Auth Handlers
   const adminLogin = (username: string, pass: string): boolean => {
@@ -464,7 +276,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // --- Admin Inventory Operations ---
+  // --- Central Database Operations (Syncs to Cloud Immediately) ---
 
   const addSupplyItem = (item: Omit<SupplyItem, 'id' | 'updatedAt'>) => {
     const newItem: SupplyItem = {
@@ -473,10 +285,13 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName),
       updatedAt: new Date().toISOString(),
     };
-    setSupplies(prevSupplies => {
-      const nextSupplies = [newItem, ...prevSupplies];
-      persistSupplies(nextSupplies);
-      return nextSupplies;
+
+    // Optimistic local update
+    setSupplies(prev => [newItem, ...prev]);
+
+    // Save to central Firestore database immediately
+    saveCentralSupply(newItem).catch(err => {
+      console.error('Failed to save new supply item to central database:', err);
     });
   };
 
@@ -488,13 +303,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: new Date().toISOString(),
     };
 
-    setSupplies(prevSupplies => {
-      const nextSupplies = prevSupplies.map(s => (s.id === item.id ? updated : s));
-      persistSupplies(nextSupplies);
-      return nextSupplies;
-    });
+    // Optimistic local update
+    setSupplies(prev => prev.map(s => (s.id === item.id ? updated : s)));
 
-    // Also update any reference in active customer canvass
+    // Update active canvass items selling price or generic name if present
     setCanvass(prev =>
       prev.map(c =>
         c.itemId === item.id
@@ -510,14 +322,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : c
       )
     );
+
+    // Save to central Firestore database immediately
+    saveCentralSupply(updated).catch(err => {
+      console.error('Failed to update supply in central database:', err);
+    });
   };
 
   const updatePrices = (id: string, buyingPrice: number, sellingPrice: number) => {
     const safeBuying = Math.max(0, Number(buyingPrice) || 0);
     const safeSelling = Math.max(0, Number(sellingPrice) || 0);
 
-    setSupplies(prevSupplies => {
-      const nextSupplies = prevSupplies.map(s => {
+    // Optimistic local update
+    setSupplies(prev =>
+      prev.map(s => {
         if (s.id === id) {
           return {
             ...s,
@@ -527,11 +345,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           };
         }
         return s;
-      });
-
-      persistSupplies(nextSupplies);
-      return nextSupplies;
-    });
+      })
+    );
 
     // Update active canvass items selling price if currently canvassed
     setCanvass(prev =>
@@ -544,28 +359,41 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : c
       )
     );
-  };
 
-  const deleteSupplyItem = (id: string) => {
-    setSupplies(prevSupplies => {
-      const nextSupplies = prevSupplies.filter(s => s.id !== id);
-      persistSupplies(nextSupplies);
-      return nextSupplies;
+    // Save to central Firestore database immediately
+    updateCentralPrices(id, safeBuying, safeSelling).catch(err => {
+      console.error('Failed to update prices in central database:', err);
     });
   };
 
   const adjustStock = (id: string, delta: number) => {
-    setSupplies(prevSupplies => {
-      const nextSupplies = prevSupplies.map(s => {
+    const target = supplies.find(s => s.id === id);
+    const currentStock = target ? target.stock : 0;
+    const newStock = Math.max(0, currentStock + delta);
+
+    // Optimistic local update
+    setSupplies(prev =>
+      prev.map(s => {
         if (s.id === id) {
-          const newStock = Math.max(0, s.stock + delta);
           return { ...s, stock: newStock, updatedAt: new Date().toISOString() };
         }
         return s;
-      });
+      })
+    );
 
-      persistSupplies(nextSupplies);
-      return nextSupplies;
+    // Save to central Firestore database immediately
+    adjustCentralStock(id, delta, currentStock).catch(err => {
+      console.error('Failed to adjust stock in central database:', err);
+    });
+  };
+
+  const deleteSupplyItem = (id: string) => {
+    // Optimistic local update
+    setSupplies(prev => prev.filter(s => s.id !== id));
+
+    // Delete from central Firestore database immediately
+    deleteCentralSupply(id).catch(err => {
+      console.error('Failed to delete supply item from central database:', err);
     });
   };
 
@@ -580,14 +408,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // ignore
     }
 
-    try {
-      fetch('/api/supplies', { method: 'DELETE' }).catch(() => {});
-    } catch {
-      // ignore
-    }
+    clearAllCentralSupplies().catch(err => {
+      console.error('Failed to clear supplies in central database:', err);
+    });
   };
 
-  // Import parsed Excel supplies: saves permanently to state, localStorage, and server backend
+  // Import parsed Excel supplies: writes immediately to centralized database in chunks
   const importExcelSupplies = (
     items: Omit<SupplyItem, 'id' | 'updatedAt'>[],
     mode: 'append' | 'replace'
@@ -600,9 +426,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: new Date().toISOString(),
     }));
 
+    // Optimistic update
     const nextSupplies = mode === 'replace' ? formattedItems : [...formattedItems, ...supplies];
     setSupplies(nextSupplies);
-    persistSupplies(nextSupplies, true);
+
+    // Save to central Firestore database immediately
+    batchSaveCentralSupplies(formattedItems, mode).catch(err => {
+      console.error('Failed to batch save supplies to central database:', err);
+    });
 
     return formattedItems.length;
   };
@@ -633,6 +464,68 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           sellingPrice: supply.sellingPrice,
         },
       ];
+    });
+  };
+
+  const addCustomUnlistedItem = (custom: CustomUnlistedInput) => {
+    const cleanGenericName = custom.genericName.trim();
+    if (!cleanGenericName) return;
+
+    const brand = custom.brand?.trim() || '';
+    const unit = custom.unit?.trim() || 'pc';
+    const quantity = Math.max(1, custom.quantity || 1);
+    const sellingPrice =
+      typeof custom.estimatedPrice === 'number' && custom.estimatedPrice > 0 ? custom.estimatedPrice : 0;
+    const description = custom.description?.trim() || '';
+    const customerNotes = custom.customerNotes?.trim() || '';
+
+    // Generate readable SKU for unlisted custom request
+    const randomCode = Math.floor(1000 + Math.random() * 9000);
+    const sku = `UNL-${randomCode}`;
+    const id = `unlisted-${Date.now()}-${randomCode}`;
+
+    const displayName = brand ? `${brand} ${cleanGenericName}` : cleanGenericName;
+
+    setCanvass(prev => {
+      // Check if this unlisted item was already added by matching name, brand, unit
+      const existingIdx = prev.findIndex(
+        it =>
+          it.isCustomUnlisted &&
+          it.genericName.toLowerCase().trim() === cleanGenericName.toLowerCase() &&
+          (it.brand || '').toLowerCase().trim() === brand.toLowerCase() &&
+          it.unit.toLowerCase().trim() === unit.toLowerCase()
+      );
+
+      if (existingIdx >= 0) {
+        return prev.map((it, idx) =>
+          idx === existingIdx
+            ? {
+                ...it,
+                quantity: it.quantity + quantity,
+                sellingPrice: sellingPrice > 0 ? sellingPrice : it.sellingPrice,
+                description: description || it.description,
+                customerNotes: customerNotes || it.customerNotes,
+              }
+            : it
+        );
+      }
+
+      const newItem: CanvassItem = {
+        itemId: id,
+        sku,
+        genericName: cleanGenericName,
+        brand,
+        name: displayName,
+        description,
+        unit,
+        quantity,
+        sellingPrice,
+        isCustomUnlisted: true,
+        estimatedPrice: sellingPrice > 0 ? sellingPrice : undefined,
+        customerNotes,
+      };
+
+      return [...prev, newItem];
     });
   };
 
@@ -685,6 +578,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       0
     );
 
+    const hasUnlistedItems = uniqueItemsList.some(item => item.isCustomUnlisted);
+
     const newSlip: CanvassSlip = {
       id: 'cnv-' + Date.now(),
       canvassNumber,
@@ -696,23 +591,33 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       notes: details.notes?.trim() || '',
       items: uniqueItemsList,
       totalAmount,
+      hasUnlistedItems,
     };
 
+    // Optimistic local update
     setSavedCanvasses(prev => [newSlip, ...prev]);
+
+    // Save to central Firestore database immediately
+    saveCentralCanvass(newSlip).catch(err => {
+      console.error('Failed to save canvass quotation to central database:', err);
+    });
+
     return newSlip;
   };
 
   const deleteCanvassSlip = (id: string) => {
     setSavedCanvasses(prev => prev.filter(s => s.id !== id));
+    deleteCentralCanvass(id).catch(err => {
+      console.error('Failed to delete canvass quotation from central database:', err);
+    });
   };
 
   const value = useMemo(
     () => ({
       supplies,
       isPriceListLoaded,
-      isSyncing,
+      isCentralSyncActive,
       lastRecordedTime,
-      refreshSupplies,
       addSupplyItem,
       updateSupplyItem,
       updatePrices,
@@ -723,6 +628,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       canvass,
       savedCanvasses,
       addToCanvass,
+      addCustomUnlistedItem,
       updateCanvassQty,
       removeFromCanvass,
       clearCanvass,
@@ -733,7 +639,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       adminLogin,
       adminLogout,
     }),
-    [supplies, isPriceListLoaded, isSyncing, lastRecordedTime, canvass, savedCanvasses, isAdmin, adminUsername]
+    [supplies, isPriceListLoaded, isCentralSyncActive, lastRecordedTime, canvass, savedCanvasses, isAdmin, adminUsername]
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;

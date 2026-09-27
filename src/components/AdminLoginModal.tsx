@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Key, X, AlertCircle, ShieldCheck, Eye, EyeOff, Star } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
+import { SevenStarsMark } from './Logo';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -41,13 +42,15 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-red-950 px-6 py-5 text-white flex items-center justify-between border-b border-blue-900/60">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-md border border-red-400/50">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-md border border-blue-500/50 p-1 shrink-0">
+              <SevenStarsMark size={32} strokeColor="#38bdf8" strokeWidth={3.8} />
             </div>
             <div>
               <div className="flex items-center gap-1">
-                <span className="text-red-400 font-extrabold text-xs flex items-center gap-0.5">
-                  7 Stars <Star className="w-2.5 h-2.5 fill-red-400 text-red-400" />
+                <span className="font-extrabold text-xs flex items-center gap-0.5">
+                  <span className="text-red-500">7</span>
+                  <span className="text-blue-400">Stars</span>
+                  <span className="text-slate-300">Depot</span>
                 </span>
                 <span className="text-[11px] text-slate-400">• Authorization</span>
               </div>

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 480" width="100%" height="100%">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@700&amp;family=Outfit:wght@800;900&amp;display=swap');
+      .logo-title {
+        font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 900;
+        letter-spacing: -0.5px;
+      }
+      .logo-tagline {
+        font-family: 'Caveat', 'Segoe Print', cursive, sans-serif;
+        font-size: 32px;
+        font-weight: 700;
+        fill: #0030B0;
+      }
+    </style>
+  </defs>
+
+  <!-- 7 Interlocking Stars Rosette -->
+  <g id="starburst">
+    <polygon points="350.00,256.00 332.37,212.27 285.33,209.01 321.47,178.73 310.03,132.99 350.00,158.00 389.97,132.99 378.53,178.73 414.67,209.01 367.63,212.27" fill="none" stroke="#0047FF" stroke-width="4.0" stroke-linejoin="round" />
+    <polygon points="259.31,212.32 282.50,171.27 255.72,132.47 301.93,141.84 330.56,104.38 335.93,151.22 380.40,166.88 337.51,186.45 336.37,233.59 304.49,198.85" fill="none" stroke="#0047FF" stroke-width="4.0" stroke-linejoin="round" />
+    <polygon points="236.91,114.19 283.47,106.73 297.11,61.59 318.59,103.57 365.73,102.59 332.45,135.99 347.94,180.53 305.89,159.20 268.33,187.69 275.62,141.11" fill="none" stroke="#0047FF" stroke-width="4.0" stroke-linejoin="round" />
+    <polygon points="299.67,35.49 334.53,67.24 378.32,49.76 358.90,92.73 389.05,128.98 342.19,123.78 317.03,163.66 307.49,117.49 261.79,105.88 302.76,82.54" fill="none" stroke="#0047FF" stroke-width="4.0" stroke-linejoin="round" />
+    <polygon points="400.33,35.49 397.24,82.54 438.21,105.88 392.51,117.49 382.97,163.66 357.81,123.78 310.95,128.98 341.10,92.73 321.68,49.76 365.47,67.24" fill="none" stroke="#0047FF" stroke-width="4.0" stroke-linejoin="round" />
+    <polygon points="463.09,114.19 424.38,141.11 431.67,187.69 394.11,159.20 352.06,180.53 367.55,135.99 334.27,102.59 381.41,103.57 402.89,61.59 416.53,106.73" fill="none" stroke="#0047FF" stroke-width="4.0" stroke-linejoin="round" />
+    <polygon points="440.69,212.32 395.51,198.85 363.63,233.59 362.49,186.45 319.60,166.88 364.07,151.22 369.44,104.38 398.07,141.84 444.28,132.47 417.50,171.27" fill="none" stroke="#0047FF" stroke-width="4.0" stroke-linejoin="round" />
+  </g>
+
+  <!-- Title Line 1 -->
+  <g transform="translate(350, 310)" text-anchor="middle" class="logo-title" font-size="46">
+    <text y="0">
+      <tspan fill="#E31837">7 </tspan>
+      <tspan fill="#0047FF">Stars </tspan>
+      <tspan fill="#E31837">School </tspan>
+      <tspan fill="#0047FF">and</tspan>
+    </text>
+  </g>
+
+  <!-- Title Line 2 -->
+  <g transform="translate(350, 375)" text-anchor="middle" class="logo-title" font-size="52">
+    <text y="0">
+      <tspan fill="#E31837">Office </tspan>
+      <tspan fill="#0047FF">Supplies </tspan>
+      <tspan fill="#E31837">Depot</tspan>
+    </text>
+  </g>
+
+  <!-- Tagline -->
+  <g transform="translate(565, 424)" text-anchor="end">
+    <text class="logo-tagline">Your supply source.</text>
+  </g>
+</svg>

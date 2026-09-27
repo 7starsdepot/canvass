@@ -23,7 +23,20 @@ export interface CanvassItem {
   description: string;
   unit: string;
   quantity: number;
-  sellingPrice: number; // Selling price only (buying price strictly excluded)
+  sellingPrice: number; // Selling price (0 if pending quotation or custom estimate)
+  isCustomUnlisted?: boolean; // True if customer added an unlisted item not found in catalog
+  estimatedPrice?: number;    // Optional budget/target price entered by customer
+  customerNotes?: string;     // Notes specific to this unlisted item
+}
+
+export interface CustomUnlistedInput {
+  genericName: string;
+  brand?: string;
+  description?: string;
+  unit: string;
+  quantity: number;
+  estimatedPrice?: number;
+  customerNotes?: string;
 }
 
 export interface CanvassSlip {
@@ -37,4 +50,5 @@ export interface CanvassSlip {
   notes?: string;
   items: CanvassItem[];
   totalAmount: number;
+  hasUnlistedItems?: boolean;
 }

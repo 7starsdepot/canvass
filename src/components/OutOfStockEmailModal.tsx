@@ -14,6 +14,7 @@ import {
   User,
   ShoppingBag
 } from 'lucide-react';
+import { SevenStarsMark } from './Logo';
 import {
   DEPOT_EMAIL,
   OutOfStockEmailPayload,
@@ -80,13 +81,15 @@ export const OutOfStockEmailModal: React.FC<OutOfStockEmailModalProps> = ({
         {/* Header (Blue & Red Depot Theme) */}
         <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-red-950 px-6 py-4 text-white flex items-center justify-between shrink-0 border-b border-blue-900/60">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-md border border-red-400/40 shrink-0">
-              <Mail className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-md border border-blue-500/50 p-1 shrink-0">
+              <SevenStarsMark size={28} strokeColor="#38bdf8" strokeWidth={3.8} />
             </div>
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-red-400 font-extrabold text-xs flex items-center gap-0.5">
-                  7 Stars <Star className="w-2.5 h-2.5 fill-red-400 text-red-400" />
+                <span className="font-extrabold text-xs flex items-center gap-0.5">
+                  <span className="text-red-500">7</span>
+                  <span className="text-blue-400">Stars</span>
+                  <span className="text-slate-300">Depot</span>
                 </span>
                 <span className="text-[11px] text-blue-200/80">• Out-of-Stock Order Dispatcher</span>
               </div>

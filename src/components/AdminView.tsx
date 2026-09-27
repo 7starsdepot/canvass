@@ -27,10 +27,10 @@ import {
   Mail,
   FileText,
   Calendar,
-  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
-import { SupplyItem, CanvassSlip } from '../types';
+import { SupplyItem, CanvassSlip, CanvassItem } from '../types';
 import { ItemFormModal } from './ItemFormModal';
 import { ExcelUploadModal } from './ExcelUploadModal';
 import { OutOfStockEmailModal } from './OutOfStockEmailModal';
@@ -51,8 +51,7 @@ export const AdminView: React.FC = () => {
     savedCanvasses,
     deleteCanvassSlip,
     lastRecordedTime,
-    isSyncing,
-    refreshSupplies,
+    isCentralSyncActive,
   } = useInventory();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -333,6 +332,24 @@ export const AdminView: React.FC = () => {
 
   const handleOpenEditModal = (item: SupplyItem) => {
     setItemToEdit(item);
+    setIsItemModalOpen(true);
+  };
+
+  const handleAddUnlistedToCatalog = (unlistedItem: CanvassItem) => {
+    const tempItem: SupplyItem = {
+      id: '',
+      sku: unlistedItem.sku && !unlistedItem.sku.startsWith('UNL-') ? unlistedItem.sku : '',
+      genericName: unlistedItem.genericName,
+      brand: unlistedItem.brand || '',
+      name: unlistedItem.name || (unlistedItem.brand ? `${unlistedItem.brand} ${unlistedItem.genericName}` : unlistedItem.genericName),
+      description: unlistedItem.description || unlistedItem.customerNotes || '',
+      unit: unlistedItem.unit || 'pc',
+      stock: 0,
+      sellingPrice: unlistedItem.sellingPrice || 0,
+      buyingPrice: 0,
+      updatedAt: new Date().toISOString(),
+    };
+    setItemToEdit(tempItem);
     setIsItemModalOpen(true);
   };
 
@@ -684,7 +701,7 @@ export const AdminView: React.FC = () => {
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 text-xs font-bold font-mono">
                 ADMIN ACCESS GRANTED
               </span>
@@ -692,18 +709,23 @@ export const AdminView: React.FC = () => {
                 <Star className="w-3.5 h-3.5 text-red-400 fill-red-400" />
                 {adminUsername ? `Signed in as ${adminUsername}` : 'Administrator Mode'}
               </span>
+              {isCentralSyncActive && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  --
+                </span>
+              )}
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
               Inventory & Pricing Control Console
             </h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <p className="text-xs sm:text-sm text-blue-200/70 max-w-2xl">
-                Click any price in the table to edit Selling and Buying rates directly, adjust stock, or upload Excel spreadsheets.
-              </p>
+                Click any price in the table to edit Selling and Buying rates directly, adjust stock, or upload Excel spreadsheets.</p>
               {supplies.length > 0 && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[11px] font-semibold border border-blue-400/30">
                   <CheckCircle2 className="w-3 h-3 text-blue-400" />
-                  <span>{supplies.length} items preserved from latest recorded price list</span>
+                  <span>{supplies.length} items synced from central database</span>
                 </span>
               )}
             </div>
@@ -727,16 +749,6 @@ export const AdminView: React.FC = () => {
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Excel Template</span>
-            </button>
-
-            <button
-              onClick={() => refreshSupplies()}
-              disabled={isSyncing}
-              className="px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Fetch latest updates from server/devices"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync Live'}</span>
             </button>
 
             <button
@@ -1000,6 +1012,12 @@ export const AdminView: React.FC = () => {
                         <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
                           {slip.canvassNumber}
                         </span>
+                        {slip.items.some(it => it.isCustomUnlisted) && (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-amber-600" />
+                            {slip.items.filter(it => it.isCustomUnlisted).length} Unlisted Request{slip.items.filter(it => it.isCustomUnlisted).length !== 1 ? 's' : ''}
+                          </span>
+                        )}
                         {hasOutOfStock ? (
                           <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-bold border border-red-200 flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3 text-red-600" />
@@ -1073,14 +1091,15 @@ export const AdminView: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {slip.items.map((item, itIdx) => {
+                          const isUnlisted = !!item.isCustomUnlisted;
                           const supply = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
-                          const isZeroStock = supply ? supply.stock <= 0 : false;
+                          const isZeroStock = !isUnlisted && (supply ? supply.stock <= 0 : false);
                           const currentStock = supply?.stock ?? 0;
 
                           return (
                             <tr
                               key={itIdx}
-                              className={isZeroStock ? 'bg-red-50/30' : 'hover:bg-slate-50/50'}
+                              className={isUnlisted ? 'bg-amber-50/25' : isZeroStock ? 'bg-red-50/30' : 'hover:bg-slate-50/50'}
                             >
                               <td className="py-2.5 px-3">
                                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -1090,12 +1109,23 @@ export const AdminView: React.FC = () => {
                                       Brand: {item.brand}
                                     </span>
                                   )}
+                                  {isUnlisted && (
+                                    <span className="px-2 py-0.2 rounded bg-amber-100 text-amber-900 font-bold text-[10px] border border-amber-300 flex items-center gap-1">
+                                      <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                                      Special Order Request
+                                    </span>
+                                  )}
                                   {isZeroStock && (
                                     <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-700 font-bold text-[10px] border border-red-200">
                                       0 Stock • Out of Stock
                                     </span>
                                   )}
                                 </div>
+                                {item.customerNotes && (
+                                  <div className="text-[11px] text-amber-800 italic mt-0.5">
+                                    Customer Note: "{item.customerNotes}"
+                                  </div>
+                                )}
                               </td>
                               <td className="py-2.5 px-3 font-mono text-slate-500">{item.sku || '—'}</td>
                               <td className="py-2.5 px-3 text-slate-600">{item.unit}</td>
@@ -1103,7 +1133,22 @@ export const AdminView: React.FC = () => {
                                 {item.quantity}
                               </td>
                               <td className="py-2.5 px-3 text-center">
-                                {isZeroStock ? (
+                                {isUnlisted ? (
+                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-semibold text-[10px] border border-amber-200">
+                                      Not in Catalog
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddUnlistedToCatalog(item)}
+                                      className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10.5px] font-bold shadow-2xs flex items-center gap-1 cursor-pointer transition-colors"
+                                      title="Add this customer requested item to the central catalog"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>+ Add to Catalog</span>
+                                    </button>
+                                  </div>
+                                ) : isZeroStock ? (
                                   <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px] border border-red-200 inline-block">
                                     0 in warehouse
                                   </span>
@@ -1112,10 +1157,21 @@ export const AdminView: React.FC = () => {
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                                {formatPeso(item.sellingPrice)}
+                                {item.sellingPrice > 0 ? (
+                                  <>
+                                    {formatPeso(item.sellingPrice)}
+                                    {isUnlisted && <span className="block text-[8.5px] text-slate-400 font-sans">(Est.)</span>}
+                                  </>
+                                ) : (
+                                  <span className="text-amber-800 font-bold text-[11px]">For Quote</span>
+                                )}
                               </td>
                               <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                                {formatPeso(item.sellingPrice * item.quantity)}
+                                {item.sellingPrice * item.quantity > 0 ? (
+                                  formatPeso(item.sellingPrice * item.quantity)
+                                ) : (
+                                  <span className="text-slate-400 text-[11px]">TBD</span>
+                                )}
                               </td>
                             </tr>
                           );
