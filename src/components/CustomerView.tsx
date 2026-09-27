@@ -359,7 +359,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             )}
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-            School & Office Supplies Catalog & Canvass
+            Price Canvass and Inventory
           </h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">

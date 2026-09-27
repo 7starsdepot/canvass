@@ -59,7 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-blue-200/70">
-                  Catalog Canvass & Inventory Pricing
+                  Price Canvass and Inventory
                 </p>
               </div>
             </div>

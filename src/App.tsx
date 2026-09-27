@@ -98,7 +98,7 @@ const MainAppContent: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-800">Office Supplies Inventory</span>
             <span>•</span>
-            <span>Customer Canvass & Inventory Pricing</span>
+            <span>Price Canvass and Inventory</span>
           </div>
 
           <div className="flex items-center gap-4 text-[11px] text-slate-400 flex-wrap justify-center sm:justify-end">
