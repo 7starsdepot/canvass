@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { SupplyItem, CanvassItem, CanvassSlip } from '../types';
+import initialSuppliesData from '../data/initialSupplies.json';
 
 interface CanvassDraftInput {
   customerName: string;
@@ -59,8 +60,9 @@ const ALL_POSSIBLE_SUPPLY_KEYS = [
 ];
 
 /**
- * Robust initial supplies loader that inspects all previous storage keys
- * so that when the app opens, recorded data is NEVER lost or reset.
+ * Robust initial supplies loader that inspects all previous storage keys,
+ * and falls back to bundled recorded master price list (522 items)
+ * so that when the app opens on a phone or new device, data is NEVER empty or reset.
  */
 function loadInitialSupplies(): SupplyItem[] {
   try {
@@ -84,16 +86,27 @@ function loadInitialSupplies(): SupplyItem[] {
   } catch (err) {
     console.warn('Notice loading initial supplies from localStorage:', err);
   }
+
+  // Pre-loaded recorded supplies from uploaded master price list:
+  // When opened on a phone, new browser profile, or mobile device without prior localStorage,
+  // this guarantees the uploaded 522 items are instantly displayed and NEVER empty!
+  if (Array.isArray(initialSuppliesData) && initialSuppliesData.length > 0) {
+    return initialSuppliesData as SupplyItem[];
+  }
+
   return [];
 }
 
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. Supplies State: Read synchronously from all recorded storage keys so previous information remains available immediately
+  // 1. Supplies State: Read synchronously from all recorded storage keys or bundled master data
   const [supplies, setSupplies] = useState<SupplyItem[]>(() => loadInitialSupplies());
-  const [isPriceListLoaded, setIsPriceListLoaded] = useState<boolean>(false);
+  const [isPriceListLoaded, setIsPriceListLoaded] = useState<boolean>(true);
   const [lastRecordedTime, setLastRecordedTime] = useState<string | null>(() => {
     try {
-      return localStorage.getItem(LAST_RECORDED_KEY);
+      return (
+        localStorage.getItem(LAST_RECORDED_KEY) ||
+        (initialSuppliesData.length > 0 ? (initialSuppliesData[0] as any).updatedAt : null)
+      );
     } catch {
       return null;
     }
@@ -201,6 +214,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let isCancelled = false;
 
     async function syncWithPersistentBackend() {
+      try {
+        if (!localStorage.getItem(SUPPLIES_STORAGE_KEY) && supplies.length > 0) {
+          localStorage.setItem(SUPPLIES_STORAGE_KEY, JSON.stringify(supplies));
+          localStorage.setItem(SUPPLIES_BACKUP_KEY, JSON.stringify(supplies));
+        }
+      } catch {
+        // ignore
+      }
+
       try {
         const res = await fetch('/api/supplies');
         if (res.ok) {

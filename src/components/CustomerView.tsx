@@ -22,6 +22,8 @@ import {
   AlertCircle,
   Mail,
   CheckCircle2,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip } from '../types';
@@ -32,11 +34,13 @@ import { DEPOT_EMAIL, OutOfStockEmailPayload } from '../utils/outOfStockEmail';
 interface CustomerViewProps {
   onOpenCanvass?: () => void;
   onViewVoucher?: (slip: CanvassSlip) => void;
+  onOpenAdmin?: () => void;
 }
 
 export const CustomerView: React.FC<CustomerViewProps> = ({
   onOpenCanvass,
   onViewVoucher,
+  onOpenAdmin,
 }) => {
   const {
     supplies,
@@ -332,14 +336,27 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-bold tracking-wide">
-              CUSTOMER PORTAL
-            </span>
-            <span className="text-xs text-red-300 flex items-center gap-1 font-semibold">
-              <Star className="w-3 h-3 fill-red-400 text-red-400" />
-              7 Stars School & Office Supplies Depot
-            </span>
+          <div className="flex items-center gap-2 flex-wrap justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-bold tracking-wide">
+                CUSTOMER PORTAL
+              </span>
+              <span className="text-xs text-red-300 flex items-center gap-1 font-semibold">
+                <Star className="w-3 h-3 fill-red-400 text-red-400" />
+                7 Stars School & Office Supplies Depot
+              </span>
+            </div>
+            {onOpenAdmin && (
+              <button
+                id="banner-admin-portal-btn"
+                onClick={onOpenAdmin}
+                className="px-2.5 py-1 rounded-lg bg-red-600/90 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 border border-red-400/50 shadow-sm cursor-pointer transition-all"
+                title="Switch to Admin Portal"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin Portal</span>
+              </button>
+            )}
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
             School & Office Supplies Catalog & Canvass
@@ -810,6 +827,28 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Quick Admin Access Card for Mobile/Desktop */}
+      {onOpenAdmin && (
+        <div className="bg-slate-900/90 text-white p-4 sm:p-5 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3 text-center sm:text-left">
+            <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-white">7 Stars Depot Management</h4>
+              <p className="text-[11px] text-slate-400">Authorized personnel can access pricing, inventory levels, and order fulfillment.</p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenAdmin}
+            className="w-full sm:w-auto px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all shrink-0"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Open Admin Portal</span>
+          </button>
         </div>
       )}
 

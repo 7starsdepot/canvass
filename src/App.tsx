@@ -60,6 +60,13 @@ const MainAppContent: React.FC = () => {
           <CustomerView
             onOpenCanvass={handleOpenCanvass}
             onViewVoucher={setActiveVoucher}
+            onOpenAdmin={() => {
+              if (isAdmin) {
+                setCurrentView('admin');
+              } else {
+                setIsLoginOpen(true);
+              }
+            }}
           />
         ) : isAdmin ? (
           <AdminView />
@@ -94,10 +101,19 @@ const MainAppContent: React.FC = () => {
             <span>Customer Canvass & Inventory Pricing</span>
           </div>
 
-          <div className="flex items-center gap-4 text-[11px] text-slate-400">
+          <div className="flex items-center gap-4 text-[11px] text-slate-400 flex-wrap justify-center sm:justify-end">
             <span>Customer View: Price Canvass Quotation</span>
             <span>•</span>
-            <span>Authorized Administrator Access Only</span>
+            <button
+              onClick={() => {
+                if (isAdmin) setCurrentView('admin');
+                else setIsLoginOpen(true);
+              }}
+              className="text-red-600 hover:text-red-700 font-bold cursor-pointer hover:underline flex items-center gap-1"
+            >
+              <Lock className="w-3 h-3" />
+              <span>Admin Portal</span>
+            </button>
           </div>
         </div>
       </footer>
