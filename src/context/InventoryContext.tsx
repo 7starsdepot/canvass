@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
-import { SupplyItem, CanvassItem, CanvassSlip, CustomUnlistedInput, OrderStatus, InventoryDeductionLog } from '../types';
+import { SupplyItem, CanvassItem, CanvassSlip, CustomUnlistedInput, OrderStatus, OrderItemStatus, InventoryDeductionLog } from '../types';
 import initialSuppliesData from '../data/initialSupplies.json';
 import {
   subscribeToCentralSupplies,
@@ -53,6 +53,7 @@ interface InventoryContextType {
   confirmOrderAndDeductStock: (orderId: string) => Promise<{ success: boolean; message: string; warnings?: string[] }>;
   cancelOrderAndRestoreStock: (orderId: string) => Promise<{ success: boolean; message: string }>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  updateOrderItemStatus: (orderId: string, itemId: string, itemStatus: OrderItemStatus) => Promise<void>;
 
   // Admin Authentication
   isAdmin: boolean;
@@ -861,6 +862,33 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  /**
+   * Update item status for an individual item inside an order
+   * ('available in store', 'for purchase', 'ordered online', 'ordered physically', 'delivered')
+   */
+  const updateOrderItemStatus = async (
+    orderId: string,
+    itemId: string,
+    itemStatus: OrderItemStatus
+  ): Promise<void> => {
+    const order = savedCanvasses.find(o => o.id === orderId);
+    if (!order) return;
+
+    const updatedItems = order.items.map(it =>
+      it.itemId === itemId ? { ...it, itemStatus } : it
+    );
+
+    const updatedOrder: CanvassSlip = {
+      ...order,
+      items: updatedItems,
+    };
+
+    setSavedCanvasses(prev => prev.map(o => (o.id === orderId ? updatedOrder : o)));
+    await saveCentralCanvass(updatedOrder).catch(err => {
+      console.error('Failed to update item status in central database:', err);
+    });
+  };
+
   const value = useMemo(
     () => ({
       supplies,
@@ -887,6 +915,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       confirmOrderAndDeductStock,
       cancelOrderAndRestoreStock,
       updateOrderStatus,
+      updateOrderItemStatus,
       isAdmin,
       adminUsername,
       adminLogin,

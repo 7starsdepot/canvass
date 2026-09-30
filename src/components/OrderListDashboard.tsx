@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { CanvassSlip, OrderStatus, SupplyItem } from '../types';
+import { CanvassSlip, OrderStatus, OrderItemStatus, SupplyItem } from '../types';
 import { formatPeso } from '../utils/currency';
 import { exportOrdersToExcel } from '../utils/exportInventory';
 import {
@@ -26,6 +26,7 @@ import {
   History,
   Check,
   XCircle,
+  X,
   Tag,
   PhilippinePeso,
 } from 'lucide-react';
@@ -50,6 +51,7 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
     confirmOrderAndDeductStock,
     cancelOrderAndRestoreStock,
     updateOrderStatus,
+    updateOrderItemStatus,
     isAdmin,
   } = useInventory();
 
@@ -63,6 +65,7 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'customer'>('date_desc');
 
   // Confirmation / processing state
+  const [confirmDeductionOrder, setConfirmDeductionOrder] = useState<CanvassSlip | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
@@ -252,6 +255,31 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
     }
   };
 
+  // Handle changing status of an individual item in the breakdown table
+  const handleItemStatusChange = async (
+    orderId: string,
+    itemId: string,
+    newStatus: OrderItemStatus
+  ) => {
+    try {
+      await updateOrderItemStatus(orderId, itemId, newStatus);
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            items: prev.items.map(item =>
+              item.itemId === itemId ? { ...item, itemStatus: newStatus } : item
+            ),
+          };
+        });
+      }
+      showToast(`Item status updated to "${newStatus}".`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Error updating item status', 'error');
+    }
+  };
+
   // Active selected order analytics for Detailed Phase
   const activeOrderDetails = useMemo(() => {
     if (!selectedOrder) return null;
@@ -364,11 +392,12 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
               {isPending && (
                 <button
                   disabled={processingId === order.id}
-                  onClick={() => handleConfirmAndDeduct(order.id)}
+                  onClick={() => setConfirmDeductionOrder(order)}
                   className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-emerald-400/40"
+                  title="Confirm Order and Deduct Inventory Stock"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Confirm Order & Deduct Inventory</span>
+                  <span>Confirm & Deduct Stock</span>
                 </button>
               )}
 
@@ -540,7 +569,8 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
                   <th className="py-3 px-3 text-right">Selling Price</th>
                   {isAdmin && <th className="py-3 px-3 text-right text-slate-500">Buying Cost</th>}
                   <th className="py-3 px-3 text-right">Total (Selling)</th>
-                  <th className="py-3 px-3 text-center">Status</th>
+                  <th className="py-3 px-3 text-center">Stock / Deduction</th>
+                  <th className="py-3 px-3 text-center min-w-[175px]">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -610,7 +640,7 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
                       <td className="py-3 px-3 text-right font-mono font-black text-red-700">
                         {it.sellingPrice > 0 ? formatPeso(it.totalSelling) : 'TBD'}
                       </td>
-                      {/* Status / Deduction */}
+                      {/* Stock / Deduction */}
                       <td className="py-3 px-3 text-center">
                         {order.stockDeducted ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
@@ -627,6 +657,68 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
                             Ready
                           </span>
                         )}
+                      </td>
+
+                      {/* Status Column: available in store, for purchase, ordered online, ordered physically, delivered */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        {(() => {
+                          const currentStatus: OrderItemStatus =
+                            it.itemStatus ||
+                            (!it.isCustomUnlisted && it.availableStock >= it.quantity
+                              ? 'available in store'
+                              : 'for purchase');
+
+                          if (!isAdmin) {
+                            return (
+                              <span
+                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border capitalize shadow-2xs ${
+                                  currentStatus === 'available in store'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                    : currentStatus === 'for purchase'
+                                    ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                    : currentStatus === 'ordered online'
+                                    ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                                    : currentStatus === 'ordered physically'
+                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                    : 'bg-teal-50 text-teal-800 border-teal-300'
+                                }`}
+                              >
+                                {currentStatus}
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <select
+                              value={currentStatus}
+                              onChange={e =>
+                                handleItemStatusChange(
+                                  order.id,
+                                  it.itemId,
+                                  e.target.value as OrderItemStatus
+                                )
+                              }
+                              className={`text-xs font-bold rounded-lg px-2.5 py-1.5 border shadow-2xs cursor-pointer focus:outline-none focus:ring-2 transition-all ${
+                                currentStatus === 'available in store'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 focus:ring-emerald-500'
+                                  : currentStatus === 'for purchase'
+                                  ? 'bg-blue-50 text-blue-800 border-blue-300 focus:ring-blue-500'
+                                  : currentStatus === 'ordered online'
+                                  ? 'bg-indigo-50 text-indigo-800 border-indigo-300 focus:ring-indigo-500'
+                                  : currentStatus === 'ordered physically'
+                                  ? 'bg-amber-50 text-amber-900 border-amber-300 focus:ring-amber-500'
+                                  : 'bg-teal-50 text-teal-800 border-teal-300 focus:ring-teal-500'
+                              }`}
+                              title="Update item fulfillment / procurement status"
+                            >
+                              <option value="available in store">available in store</option>
+                              <option value="for purchase">for purchase</option>
+                              <option value="ordered online">ordered online</option>
+                              <option value="ordered physically">ordered physically</option>
+                              <option value="delivered">delivered</option>
+                            </select>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -649,6 +741,7 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
                   <td className="py-3 px-3 text-right font-mono font-black text-base text-red-700">
                     {formatPeso(order.totalAmount)}
                   </td>
+                  <td></td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -1018,12 +1111,15 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
                           {isPending && (
                             <button
                               disabled={processingId === order.id}
-                              onClick={e => handleConfirmAndDeduct(order.id, e)}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setConfirmDeductionOrder(order);
+                              }}
                               className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
-                              title="Confirm Order & Deduct Inventory"
+                              title="Confirm Order & Deduct Inventory Stock"
                             >
                               <Check className="w-3 h-3" />
-                              <span>Confirm</span>
+                              <span>Confirm Stock</span>
                             </button>
                           )}
 
@@ -1055,6 +1151,129 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Admin Confirmation Modal for Stock Deduction */}
+      {confirmDeductionOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in">
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-blue-950 px-6 py-4 text-white flex items-center justify-between shrink-0 border-b border-emerald-800/40">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white">
+                    Confirm Order & Deduct Inventory Stock
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-emerald-200/80">
+                    Order #{confirmDeductionOrder.canvassNumber} • {confirmDeductionOrder.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConfirmDeductionOrder(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-900 leading-relaxed">
+                <strong>Admin Action Notice:</strong> Confirming this order will permanently deduct the ordered quantities below from your central warehouse stock. This operation is recorded in the deduction audit trail.
+              </div>
+
+              {/* Items Breakdown Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                      <th className="py-2.5 px-3">Item Description</th>
+                      <th className="py-2.5 px-3 text-center">Available Stock</th>
+                      <th className="py-2.5 px-3 text-center text-red-600">To Deduct</th>
+                      <th className="py-2.5 px-3 text-center text-emerald-700">Stock After</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {confirmDeductionOrder.items.map(item => {
+                      const supply = supplies.find(s => s.id === item.itemId || (s.sku && item.sku && s.sku === item.sku));
+                      const available = supply ? supply.stock : 0;
+                      const deductQty = item.quantity;
+                      const remaining = Math.max(0, available - deductQty);
+                      const isDeficit = !item.isCustomUnlisted && available < deductQty;
+
+                      return (
+                        <tr key={item.itemId} className={isDeficit ? 'bg-amber-50/60' : 'hover:bg-slate-50'}>
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-slate-800">{item.genericName}</div>
+                            {item.brand && <div className="text-[10px] text-slate-400">Brand: {item.brand}</div>}
+                            {item.isCustomUnlisted && (
+                              <span className="text-[10px] text-amber-700 font-bold">Unlisted / Custom Item</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono font-medium text-slate-700">
+                            {item.isCustomUnlisted ? '—' : `${available} ${item.unit}`}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold text-red-600">
+                            -{deductQty} {item.unit}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold">
+                            {item.isCustomUnlisted ? (
+                              <span className="text-slate-400 text-[11px]">Special Order</span>
+                            ) : isDeficit ? (
+                              <span className="text-amber-700 text-[11px] font-bold">
+                                0 {item.unit} (Deficit: {deductQty - available})
+                              </span>
+                            ) : (
+                              <span className="text-emerald-700 text-[11px] font-bold">
+                                {remaining} {item.unit}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Order Financial Summary */}
+              <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                <span className="text-slate-600 font-medium">Total Quoted Order Valuation:</span>
+                <span className="font-mono font-black text-base text-red-700">
+                  {formatPeso(confirmDeductionOrder.totalAmount)}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfirmDeductionOrder(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-200/70 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={processingId === confirmDeductionOrder.id}
+                onClick={async () => {
+                  const targetId = confirmDeductionOrder.id;
+                  setConfirmDeductionOrder(null);
+                  await handleConfirmAndDeduct(targetId);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-emerald-400/40"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Confirm & Deduct Stock Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

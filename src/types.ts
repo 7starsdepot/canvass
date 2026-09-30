@@ -26,6 +26,13 @@ export interface InventoryDeductionLog {
   timestamp: string;
 }
 
+export type OrderItemStatus =
+  | 'available in store'
+  | 'for purchase'
+  | 'ordered online'
+  | 'ordered physically'
+  | 'delivered';
+
 export interface CanvassItem {
   itemId: string;
   sku: string;
@@ -40,6 +47,7 @@ export interface CanvassItem {
   isCustomUnlisted?: boolean; // True if customer added an unlisted item not found in catalog
   estimatedPrice?: number;    // Optional budget/target price entered by customer
   customerNotes?: string;     // Notes specific to this unlisted item
+  itemStatus?: OrderItemStatus; // 'available in store' | 'for purchase' | 'ordered online' | 'ordered physically' | 'delivered'
 }
 
 export interface CustomUnlistedInput {

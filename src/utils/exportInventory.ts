@@ -158,7 +158,8 @@ export function exportOrdersToExcel(
         'Selling Price (PHP)': it.sellingPrice,
         'Item Total (PHP)': it.sellingPrice * it.quantity,
         'Is Unlisted': it.isCustomUnlisted ? 'YES' : 'NO',
-        'Status': (o.status || 'pending').toUpperCase(),
+        'Order Status': (o.status || 'pending').toUpperCase(),
+        'Item Status': it.itemStatus || 'available in store',
       });
     });
   });

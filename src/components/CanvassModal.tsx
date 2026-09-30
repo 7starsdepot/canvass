@@ -4,7 +4,6 @@ import {
   Trash2,
   Plus,
   Minus,
-  FileCheck,
   Building,
   User,
   FileText,
@@ -71,7 +70,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
   // Selling Price total only (Buying price is strictly omitted from customer view)
   const grandTotal = canvass.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
 
-  const handleCreateSlip = (autoDeduct: boolean) => {
+  const handleCreateSlip = (isOrder: boolean) => {
     setError(null);
 
     if (canvass.length === 0) {
@@ -86,8 +85,8 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
       customerName: resolvedCustomerName,
       departmentOrCompany: departmentOrCompany.trim() || 'General Department / Organization',
       notes: notes.trim(),
-      orderType: autoDeduct ? 'order' : 'canvass',
-      autoDeductStock: autoDeduct,
+      orderType: isOrder ? 'order' : 'canvass',
+      autoDeductStock: false, // In Customer View, submitting and placing order does NOT deduct stock. Confirmation of stock deduction is performed by Admin.
     });
 
     if (newSlip) {
@@ -131,7 +130,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={e => { e.preventDefault(); handleCreateSlip(false); }} className="p-6 space-y-5 overflow-y-auto flex-1">
+        <form onSubmit={e => { e.preventDefault(); handleCreateSlip(true); }} className="p-6 space-y-5 overflow-y-auto flex-1">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-xs font-medium">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -414,37 +413,34 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
             </div>
           </div>
 
+          {/* Order Placement Information Callout */}
+          <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>
+              Orders submitted in Customer View are queued for administrator review. Inventory stock is confirmed and deducted by Admin upon fulfillment.
+            </span>
+          </div>
+
           {/* Footer Actions */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
             >
               Cancel
             </button>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                disabled={canvass.length === 0}
-                onClick={() => handleCreateSlip(false)}
-                id="generate-quotation-btn"
-                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-              >
-                <FileCheck className="w-4 h-4 text-blue-400" />
-                <span>Quotation Only</span>
-              </button>
-              <button
-                type="button"
-                disabled={canvass.length === 0}
-                onClick={() => handleCreateSlip(true)}
-                id="confirm-place-order-btn"
-                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer border border-red-500/50"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                <span>Confirm & Place Order (Deduct Stock)</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              disabled={canvass.length === 0}
+              onClick={() => handleCreateSlip(true)}
+              id="submit-place-order-btn"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer border border-red-500/50"
+              title="Submit and place order for administrative confirmation"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Submit & Place Order</span>
+            </button>
           </div>
         </form>
 
