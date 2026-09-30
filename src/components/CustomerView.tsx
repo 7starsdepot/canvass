@@ -864,7 +864,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    Official Quotation estimate • Does not alter admin inventory
+                    Official Quotation & Order • Automatic inventory deduction on order confirmation
                   </p>
                 </div>
               </div>

@@ -69,7 +69,7 @@ const MainAppContent: React.FC = () => {
             }}
           />
         ) : isAdmin ? (
-          <AdminView />
+          <AdminView onViewVoucher={setActiveVoucher} />
         ) : (
           /* Locked Admin Gateway fallback if user navigates to admin without session */
           <div className="max-w-md mx-auto my-12 p-8 bg-white/95 backdrop-blur-xs rounded-2xl border border-slate-200/80 shadow-md text-center">
@@ -102,7 +102,12 @@ const MainAppContent: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-4 text-[11px] text-slate-400 flex-wrap justify-center sm:justify-end">
-            <span>Customer View: Price Canvass Quotation</span>
+            <button
+              onClick={() => setCurrentView('customer')}
+              className="hover:text-slate-700 cursor-pointer hover:underline"
+            >
+              Customer Catalog
+            </button>
             <span>•</span>
             <button
               onClick={() => {
@@ -112,7 +117,7 @@ const MainAppContent: React.FC = () => {
               className="text-red-600 hover:text-red-700 font-bold cursor-pointer hover:underline flex items-center gap-1"
             >
               <Lock className="w-3 h-3" />
-              <span>Admin Portal</span>
+              <span>Admin Portal & Orders</span>
             </button>
           </div>
         </div>

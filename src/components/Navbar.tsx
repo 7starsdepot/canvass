@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, ShieldCheck, FileText, User, LogOut, CheckCircle2, Store, Star, Lock } from 'lucide-react';
+import { Package, ShieldCheck, FileText, User, LogOut, CheckCircle2, Store, Star, Lock, ShoppingBag } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SevenStarsMark } from './Logo';
 
@@ -16,7 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCanvass,
   onOpenLogin,
 }) => {
-  const { canvass, isAdmin, adminUsername, adminLogout, isCentralSyncActive } = useInventory();
+  const { canvass, savedCanvasses, isAdmin, adminUsername, adminLogout, isCentralSyncActive } = useInventory();
   const totalCanvassCount = canvass.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleAdminClick = () => {

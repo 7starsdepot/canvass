@@ -9,7 +9,10 @@ import {
   User,
   FileText,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  ShoppingBag,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { CanvassSlip } from '../types';
@@ -49,11 +52,18 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isAddUnlistedOpen, setIsAddUnlistedOpen] = useState(false);
 
-  // Check which items in current canvass have zero stock in warehouse (excluding unlisted special requests)
+  // Check which items in current canvass have zero stock in warehouse
   const outOfStockItems = canvass.filter(item => {
     if (item.isCustomUnlisted) return false;
     const supply = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
     return supply ? supply.stock <= 0 : false;
+  });
+
+  // Check which items have insufficient stock (ordered quantity > current available stock)
+  const insufficientStockItems = canvass.filter(item => {
+    if (item.isCustomUnlisted) return false;
+    const supply = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
+    return supply ? supply.stock < item.quantity : false;
   });
 
   const unlistedItems = canvass.filter(item => item.isCustomUnlisted);
@@ -61,8 +71,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
   // Selling Price total only (Buying price is strictly omitted from customer view)
   const grandTotal = canvass.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateSlip = (autoDeduct: boolean) => {
     setError(null);
 
     if (canvass.length === 0) {
@@ -77,9 +86,12 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
       customerName: resolvedCustomerName,
       departmentOrCompany: departmentOrCompany.trim() || 'General Department / Organization',
       notes: notes.trim(),
+      orderType: autoDeduct ? 'order' : 'canvass',
+      autoDeductStock: autoDeduct,
     });
 
     if (newSlip) {
+      clearCanvass();
       onSuccess(newSlip);
       onClose();
     }
@@ -119,7 +131,7 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1">
+        <form onSubmit={e => { e.preventDefault(); handleCreateSlip(false); }} className="p-6 space-y-5 overflow-y-auto flex-1">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-xs font-medium">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -137,6 +149,21 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                 </strong>
                 <span className="text-slate-600 mt-0.5 block">
                   You can still include them in your quotation. Once generated, you can send an order email to <strong className="text-red-700 font-mono">sevenstarsdepot@yahoo.com</strong> to request depot restocking.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Insufficient Stock Warning Banner */}
+          {insufficientStockItems.length > 0 && outOfStockItems.length === 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-950">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-amber-800 block font-bold">
+                  Insufficient Stock Warning ({insufficientStockItems.length} Item{insufficientStockItems.length > 1 ? 's' : ''})
+                </strong>
+                <span className="text-amber-900/80 mt-0.5 block">
+                  The requested quantities exceed the currently available depot stock for some items. Placing an order will automatically deduct available stock and reduce remaining inventory to 0.
                 </span>
               </div>
             </div>
@@ -234,9 +261,18 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                               Special Request / Unlisted
                             </span>
                           )}
-                          {isItemZeroStock && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold border border-red-200">
-                              0 Stock (Out of Stock)
+                          {!item.isCustomUnlisted && supply && (
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
+                                supply.stock <= 0
+                                  ? 'bg-red-100 text-red-700 border-red-200'
+                                  : supply.stock < item.quantity
+                                  ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
+                            >
+                              Stock: {supply.stock} {item.unit}
+                              {supply.stock < item.quantity && supply.stock > 0 && ` (Deficit: ${item.quantity - supply.stock})`}
                             </span>
                           )}
                         </div>
@@ -379,23 +415,36 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-2 flex items-center justify-end gap-3 shrink-0">
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={canvass.length === 0}
-              id="generate-canvass-btn"
-              className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-red-500/50"
-            >
-              <FileCheck className="w-4 h-4" />
-              <span>Generate Canvass Sheet</span>
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                disabled={canvass.length === 0}
+                onClick={() => handleCreateSlip(false)}
+                id="generate-quotation-btn"
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <FileCheck className="w-4 h-4 text-blue-400" />
+                <span>Quotation Only</span>
+              </button>
+              <button
+                type="button"
+                disabled={canvass.length === 0}
+                onClick={() => handleCreateSlip(true)}
+                id="confirm-place-order-btn"
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer border border-red-500/50"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Confirm & Place Order (Deduct Stock)</span>
+              </button>
+            </div>
           </div>
         </form>
 

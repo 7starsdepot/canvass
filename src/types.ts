@@ -14,6 +14,18 @@ export interface SupplyItem {
   updatedAt: string;
 }
 
+export type OrderStatus = 'pending' | 'confirmed' | 'fulfilled' | 'cancelled';
+
+export interface InventoryDeductionLog {
+  itemId: string;
+  itemName: string;
+  sku?: string;
+  quantityDeducted: number;
+  previousStock: number;
+  newStock: number;
+  timestamp: string;
+}
+
 export interface CanvassItem {
   itemId: string;
   sku: string;
@@ -24,6 +36,7 @@ export interface CanvassItem {
   unit: string;
   quantity: number;
   sellingPrice: number; // Selling price (0 if pending quotation or custom estimate)
+  buyingPrice?: number; // Buying cost from inventory (for admin purchase review)
   isCustomUnlisted?: boolean; // True if customer added an unlisted item not found in catalog
   estimatedPrice?: number;    // Optional budget/target price entered by customer
   customerNotes?: string;     // Notes specific to this unlisted item
@@ -51,4 +64,12 @@ export interface CanvassSlip {
   items: CanvassItem[];
   totalAmount: number;
   hasUnlistedItems?: boolean;
+  // Order status & automatic inventory deduction fields
+  orderType?: 'canvass' | 'order';
+  status?: OrderStatus;
+  stockDeducted?: boolean;
+  stockDeductedAt?: string;
+  deductionLogs?: InventoryDeductionLog[];
+  confirmedAt?: string;
+  fulfilledAt?: string;
 }

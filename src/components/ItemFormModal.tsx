@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, DollarSign, Package, AlertCircle, Star } from 'lucide-react';
+import { X, Save, PhilippinePeso, Package, AlertCircle, Star } from 'lucide-react';
 import { SupplyItem } from '../types';
 import { formatPeso } from '../utils/currency';
 import { SevenStarsMark } from './Logo';
@@ -259,7 +259,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-blue-600" />
+                <PhilippinePeso className="w-3.5 h-3.5 text-blue-600" />
                 Pricing Configuration (Admin Only)
               </span>
               {unitProfit < 0 && (

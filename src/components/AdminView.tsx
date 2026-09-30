@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Boxes,
-  DollarSign,
+  PhilippinePeso,
   TrendingUp,
   Plus,
   Search,
@@ -28,16 +28,23 @@ import {
   FileText,
   Calendar,
   Sparkles,
+  ShoppingBag,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip, CanvassItem } from '../types';
 import { ItemFormModal } from './ItemFormModal';
 import { ExcelUploadModal } from './ExcelUploadModal';
 import { OutOfStockEmailModal } from './OutOfStockEmailModal';
+import { OrderListDashboard } from './OrderListDashboard';
 import { DEPOT_EMAIL, OutOfStockEmailPayload, OutOfStockItemDetail } from '../utils/outOfStockEmail';
 import { formatPeso } from '../utils/currency';
+import { exportLatestInventoryToExcel, exportLatestInventoryToCSV } from '../utils/exportInventory';
 
-export const AdminView: React.FC = () => {
+interface AdminViewProps {
+  onViewVoucher?: (slip: CanvassSlip) => void;
+}
+
+export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   const {
     supplies,
     addSupplyItem,
@@ -382,8 +389,55 @@ export const AdminView: React.FC = () => {
     );
   };
 
+  // Export Latest Recorded Inventory Data (Reflects current system data at time of export)
+  const handleExportLatestData = (format: 'xlsx' | 'csv' = 'xlsx') => {
+    if (supplies.length === 0) {
+      showToast('No inventory data available to export.');
+      return;
+    }
+    if (format === 'csv') {
+      exportLatestInventoryToCSV(supplies);
+      showToast(`Exported latest recorded inventory (${supplies.length} items) to CSV.`);
+    } else {
+      exportLatestInventoryToExcel(supplies);
+      showToast(`Exported latest recorded inventory (${supplies.length} items) to Excel (.xlsx).`);
+    }
+  };
+
   const handleDownloadTemplate = () => {
-    const templateData = [
+    // If supplies exist, export real current recorded data structured for Excel import
+    if (supplies.length > 0) {
+      const templateData = supplies.map(item => ({
+        'Generic Name': item.genericName,
+        'Brand': item.brand || '',
+        'Description': item.description || '',
+        'Unit': item.unit || 'pc',
+        'No. of Stock': item.stock,
+        'selling price': item.sellingPrice,
+        'Buying price': item.buyingPrice,
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Supplies Catalog');
+
+      worksheet['!cols'] = [
+        { wch: 28 },
+        { wch: 18 },
+        { wch: 42 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 16 },
+        { wch: 16 },
+      ];
+
+      XLSX.writeFile(workbook, '7Stars_Latest_Recorded_Inventory_Template.xlsx');
+      showToast(`Exported template prefilled with ${supplies.length} latest recorded items.`);
+      return;
+    }
+
+    // Default sample template if inventory is empty
+    const sampleData = [
       {
         'Generic Name': 'Ballpen 0.5mm',
         'Brand': 'Pilot',
@@ -402,41 +456,13 @@ export const AdminView: React.FC = () => {
         'selling price': 6.25,
         'Buying price': 4.10,
       },
-      {
-        'Generic Name': 'Sticky Notes 3x3',
-        'Brand': 'Post-it',
-        'Description': 'Classic canary yellow self-adhesive note pads, 100 sheets/pad',
-        'Unit': 'Pack of 12',
-        'No. of Stock': 45,
-        'selling price': 7.50,
-        'Buying price': 4.50,
-      },
-      {
-        'Generic Name': 'Document Folder Letter Size',
-        'Brand': 'Smead',
-        'Description': 'Heavy duty 2-pocket polypropylene report folders',
-        'Unit': 'Box of 25',
-        'No. of Stock': 30,
-        'selling price': 14.00,
-        'Buying price': 9.20,
-      },
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const worksheet = XLSX.utils.json_to_sheet(sampleData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Office Supplies');
-
-    worksheet['!cols'] = [
-      { wch: 25 },
-      { wch: 15 },
-      { wch: 40 },
-      { wch: 15 },
-      { wch: 14 },
-      { wch: 15 },
-      { wch: 15 },
-    ];
-
     XLSX.writeFile(workbook, 'office_supplies_inventory_template.xlsx');
+    showToast('Downloaded sample Excel template.');
   };
 
   const handleClearAll = () => {
@@ -658,7 +684,7 @@ export const AdminView: React.FC = () => {
                 className="p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-900 border border-blue-200/70 transition-colors cursor-pointer"
                 title="Quick Edit Buying & Selling Prices"
               >
-                <DollarSign className="w-3.5 h-3.5" />
+                <PhilippinePeso className="w-3.5 h-3.5" />
               </button>
               <button
                 id={`edit-item-${item.sku}`}
@@ -742,12 +768,32 @@ export const AdminView: React.FC = () => {
               <span>Upload Excel File</span>
             </button>
 
+            {/* Export Latest Recorded Data */}
+            <div className="relative inline-flex rounded-xl shadow-xs">
+              <button
+                id="admin-export-data-btn"
+                onClick={() => handleExportLatestData('xlsx')}
+                className="px-4 py-2 rounded-l-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer border-y border-l border-emerald-500"
+                title="Export latest recorded inventory data to Excel (.xlsx)"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Data</span>
+              </button>
+              <button
+                onClick={() => handleExportLatestData('csv')}
+                className="px-2.5 py-2 rounded-r-xl bg-emerald-700 hover:bg-emerald-600 text-emerald-100 text-xs font-semibold flex items-center transition-all cursor-pointer border-y border-r border-emerald-500"
+                title="Export as CSV"
+              >
+                CSV
+              </button>
+            </div>
+
             <button
               onClick={handleDownloadTemplate}
               className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-blue-200 hover:text-white text-xs font-medium border border-blue-900/60 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Download formatted Excel template"
+              title="Download formatted Excel template filled with latest recorded inventory"
             >
-              <Download className="w-3.5 h-3.5" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400" />
               <span className="hidden sm:inline">Excel Template</span>
             </button>
 
@@ -815,7 +861,7 @@ export const AdminView: React.FC = () => {
           <div className="bg-slate-900/90 p-4 rounded-xl border-t-2 border-t-red-500 border-x border-b border-red-950">
             <div className="flex items-center justify-between text-slate-300 text-xs mb-1 font-semibold">
               <span>Purchasing Cost (Buying Price)</span>
-              <DollarSign className="w-4 h-4 text-red-400" />
+              <PhilippinePeso className="w-4 h-4 text-red-400" />
             </div>
             <div className="text-2xl font-black text-red-300">{formatPeso(totalCostValuation)}</div>
             <div className="text-[11px] text-slate-400 mt-1">Capital invested in stock</div>
@@ -861,6 +907,7 @@ export const AdminView: React.FC = () => {
           </button>
 
           <button
+            id="admin-tab-orders"
             onClick={() => setAdminTab('orders')}
             className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
               adminTab === 'orders'
@@ -868,11 +915,11 @@ export const AdminView: React.FC = () => {
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            <FileText className="w-4 h-4" />
-            <span>Customer Orders & Canvasses ({savedCanvasses.length})</span>
+            <ShoppingBag className="w-4 h-4" />
+            <span>Order List Dashboard ({savedCanvasses.length})</span>
             {ordersNeedingStock.length > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black animate-pulse">
-                {ordersNeedingStock.length} Out of Stock
+                {ordersNeedingStock.length} Warning
               </span>
             )}
           </button>
@@ -891,309 +938,7 @@ export const AdminView: React.FC = () => {
       </div>
 
       {adminTab === 'orders' ? (
-        /* Customer Orders & Canvasses Tab */
-        <div className="space-y-4">
-          {/* Out-of-Stock Orders Banner */}
-          {ordersNeedingStock.length > 0 ? (
-            <div className="p-4 bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border border-red-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
-                <div>
-                  <strong className="text-red-950 font-bold block text-sm">
-                    {ordersNeedingStock.length} Customer Order{ordersNeedingStock.length !== 1 ? 's' : ''} Require Stock Restocking
-                  </strong>
-                  <span className="text-red-800 text-xs">
-                    Supplies in these orders currently have zero (0) stock in the warehouse. Send an alert email to <strong className="font-mono text-red-900">{DEPOT_EMAIL}</strong>.
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={handleEmailAllOutOfStockOrders}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-2 shadow-xs cursor-pointer transition-colors shrink-0"
-              >
-                <Mail className="w-4 h-4" />
-                <span>Email All Out-of-Stock Orders to {DEPOT_EMAIL}</span>
-              </button>
-            </div>
-          ) : (
-            <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>All items across all recorded customer orders currently have available warehouse stock.</span>
-            </div>
-          )}
-
-          {/* Search & Filter Controls for Orders */}
-          <div className="bg-white/95 backdrop-blur-xs p-4 rounded-2xl border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                value={orderSearchQuery}
-                onChange={e => setOrderSearchQuery(e.target.value)}
-                placeholder="Search orders by Canvass #, customer, department, or supply item..."
-                className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all font-medium"
-              />
-              {orderSearchQuery && (
-                <button
-                  onClick={() => setOrderSearchQuery('')}
-                  className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-medium cursor-pointer"
-                  title="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setOrdersFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  ordersFilter === 'all'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                All Orders ({savedCanvasses.length})
-              </button>
-
-              <button
-                onClick={() => setOrdersFilter('out_of_stock')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  ordersFilter === 'out_of_stock'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                }`}
-              >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Out of Stock Only ({ordersNeedingStock.length})</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Orders Cards Grid */}
-          {savedCanvasses.length === 0 ? (
-            <div className="p-12 text-center bg-white/95 rounded-2xl border border-slate-200">
-              <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-700">No Customer Orders Recorded</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Customer canvasses and order slips generated in the Customer Portal will be listed here.
-              </p>
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            <div className="p-10 text-center bg-white/95 rounded-2xl border border-slate-200">
-              <p className="text-sm font-semibold text-slate-700">No orders match the current filter or search query</p>
-              <button
-                onClick={() => {
-                  setOrderSearchQuery('');
-                  setOrdersFilter('all');
-                }}
-                className="mt-3 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 cursor-pointer"
-              >
-                Reset Filter
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredOrders.map(({ slip, outOfStockItems, hasOutOfStock }) => (
-                <div
-                  key={slip.id}
-                  className={`bg-white rounded-2xl border shadow-xs overflow-hidden transition-all ${
-                    hasOutOfStock
-                      ? 'border-red-300 ring-1 ring-red-200 shadow-red-500/5'
-                      : 'border-slate-200'
-                  }`}
-                >
-                  {/* Order Card Header */}
-                  <div className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b ${
-                    hasOutOfStock ? 'bg-red-50/40 border-red-100' : 'bg-slate-50/70 border-slate-200'
-                  }`}>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
-                          {slip.canvassNumber}
-                        </span>
-                        {slip.items.some(it => it.isCustomUnlisted) && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-amber-600" />
-                            {slip.items.filter(it => it.isCustomUnlisted).length} Unlisted Request{slip.items.filter(it => it.isCustomUnlisted).length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        {hasOutOfStock ? (
-                          <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-bold border border-red-200 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 text-red-600" />
-                            {outOfStockItems.length} item{outOfStockItems.length !== 1 ? 's' : ''} Out of Stock
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            All Items In Stock
-                          </span>
-                        )}
-                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(slip.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-
-                      <div className="mt-1.5 flex items-center gap-2 flex-wrap text-xs">
-                        <span className="font-bold text-slate-900">{slip.customerName}</span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-600">{slip.departmentOrCompany}</span>
-                        {slip.notes && (
-                          <>
-                            <span className="text-slate-400">•</span>
-                            <span className="text-slate-500 italic">"{slip.notes}"</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-                      {hasOutOfStock && (
-                        <button
-                          onClick={() => handleEmailSingleOrder(slip, outOfStockItems)}
-                          className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer border border-red-500/50"
-                          title={`Email out-of-stock items in this order to ${DEPOT_EMAIL}`}
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          <span>Email {DEPOT_EMAIL}</span>
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Delete order ${slip.canvassNumber}?`)) {
-                            deleteCanvassSlip(slip.id);
-                            showToast(`Deleted order ${slip.canvassNumber}`);
-                          }
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                        title="Delete order"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Order Items Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-semibold">
-                          <th className="py-2 px-3">Item Generic Name & Brand</th>
-                          <th className="py-2 px-3">SKU</th>
-                          <th className="py-2 px-3">Unit</th>
-                          <th className="py-2 px-3 text-center">Order Qty</th>
-                          <th className="py-2 px-3 text-center">Warehouse Stock</th>
-                          <th className="py-2 px-3 text-right">Selling Price</th>
-                          <th className="py-2 px-3 text-right">Line Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {slip.items.map((item, itIdx) => {
-                          const isUnlisted = !!item.isCustomUnlisted;
-                          const supply = supplies.find(s => s.id === item.itemId || s.sku === item.sku);
-                          const isZeroStock = !isUnlisted && (supply ? supply.stock <= 0 : false);
-                          const currentStock = supply?.stock ?? 0;
-
-                          return (
-                            <tr
-                              key={itIdx}
-                              className={isUnlisted ? 'bg-amber-50/25' : isZeroStock ? 'bg-red-50/30' : 'hover:bg-slate-50/50'}
-                            >
-                              <td className="py-2.5 px-3">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-slate-900">{item.genericName}</span>
-                                  {item.brand && (
-                                    <span className="px-2 py-0.2 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold border border-slate-200">
-                                      Brand: {item.brand}
-                                    </span>
-                                  )}
-                                  {isUnlisted && (
-                                    <span className="px-2 py-0.2 rounded bg-amber-100 text-amber-900 font-bold text-[10px] border border-amber-300 flex items-center gap-1">
-                                      <Sparkles className="w-2.5 h-2.5 text-amber-600" />
-                                      Special Order Request
-                                    </span>
-                                  )}
-                                  {isZeroStock && (
-                                    <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-700 font-bold text-[10px] border border-red-200">
-                                      0 Stock • Out of Stock
-                                    </span>
-                                  )}
-                                </div>
-                                {item.customerNotes && (
-                                  <div className="text-[11px] text-amber-800 italic mt-0.5">
-                                    Customer Note: "{item.customerNotes}"
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 font-mono text-slate-500">{item.sku || '—'}</td>
-                              <td className="py-2.5 px-3 text-slate-600">{item.unit}</td>
-                              <td className="py-2.5 px-3 text-center font-bold text-slate-800">
-                                {item.quantity}
-                              </td>
-                              <td className="py-2.5 px-3 text-center">
-                                {isUnlisted ? (
-                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-semibold text-[10px] border border-amber-200">
-                                      Not in Catalog
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddUnlistedToCatalog(item)}
-                                      className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10.5px] font-bold shadow-2xs flex items-center gap-1 cursor-pointer transition-colors"
-                                      title="Add this customer requested item to the central catalog"
-                                    >
-                                      <Plus className="w-3 h-3" />
-                                      <span>+ Add to Catalog</span>
-                                    </button>
-                                  </div>
-                                ) : isZeroStock ? (
-                                  <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px] border border-red-200 inline-block">
-                                    0 in warehouse
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-700 font-medium">{currentStock} available</span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                                {item.sellingPrice > 0 ? (
-                                  <>
-                                    {formatPeso(item.sellingPrice)}
-                                    {isUnlisted && <span className="block text-[8.5px] text-slate-400 font-sans">(Est.)</span>}
-                                  </>
-                                ) : (
-                                  <span className="text-amber-800 font-bold text-[11px]">For Quote</span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                                {item.sellingPrice * item.quantity > 0 ? (
-                                  formatPeso(item.sellingPrice * item.quantity)
-                                ) : (
-                                  <span className="text-slate-400 text-[11px]">TBD</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-slate-50 border-t border-slate-200 font-bold text-xs">
-                          <td colSpan={6} className="py-2.5 px-3 text-right text-slate-700">
-                            Total Quoted Order Value:
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-red-700 font-mono font-black text-sm">
-                            {formatPeso(slip.totalAmount)}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <OrderListDashboard onViewVoucher={onViewVoucher || (() => {})} isEmbeddedInAdmin={true} />
       ) : (
         /* Main Inventory Content Area */
         <div className="space-y-4">

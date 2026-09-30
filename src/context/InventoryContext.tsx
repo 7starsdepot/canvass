@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
-import { SupplyItem, CanvassItem, CanvassSlip, CustomUnlistedInput } from '../types';
+import { SupplyItem, CanvassItem, CanvassSlip, CustomUnlistedInput, OrderStatus, InventoryDeductionLog } from '../types';
 import initialSuppliesData from '../data/initialSupplies.json';
 import {
   subscribeToCentralSupplies,
@@ -15,12 +15,14 @@ import {
   seedInitialCentralDataIfEmpty,
 } from '../services/firestoreService';
 
-interface CanvassDraftInput {
+export interface CanvassDraftInput {
   customerName: string;
   departmentOrCompany: string;
   companyName?: string;
   contactNumber?: string;
   notes?: string;
+  orderType?: 'canvass' | 'order';
+  autoDeductStock?: boolean;
 }
 
 interface InventoryContextType {
@@ -37,7 +39,7 @@ interface InventoryContextType {
   importExcelSupplies: (items: Omit<SupplyItem, 'id' | 'updatedAt'>[], mode: 'append' | 'replace') => number;
   clearAllSupplies: () => void;
 
-  // Canvass (Customer View Only - Shared & Saved in Central DB)
+  // Canvass & Orders (Shared & Saved in Central DB)
   canvass: CanvassItem[];
   savedCanvasses: CanvassSlip[];
   addToCanvass: (supply: SupplyItem, quantity?: number) => void;
@@ -47,6 +49,9 @@ interface InventoryContextType {
   clearCanvass: () => void;
   generateCanvassSlip: (details: CanvassDraftInput) => CanvassSlip | null;
   deleteCanvassSlip: (id: string) => void;
+  confirmOrderAndDeductStock: (orderId: string) => Promise<{ success: boolean; message: string; warnings?: string[] }>;
+  cancelOrderAndRestoreStock: (orderId: string) => Promise<{ success: boolean; message: string }>;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
 
   // Admin Authentication
   isAdmin: boolean;
@@ -462,6 +467,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           unit: supply.unit,
           quantity: Math.max(1, quantity),
           sellingPrice: supply.sellingPrice,
+          buyingPrice: supply.buyingPrice,
         },
       ];
     });
@@ -580,10 +586,54 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const hasUnlistedItems = uniqueItemsList.some(item => item.isCustomUnlisted);
 
+    // Check if auto-deduction was requested (Order Placed)
+    const shouldAutoDeduct = Boolean(details.autoDeductStock);
+    const orderType = details.orderType || (shouldAutoDeduct ? 'order' : 'canvass');
+    const nowIso = new Date().toISOString();
+    let deductionLogs: InventoryDeductionLog[] = [];
+
+    if (shouldAutoDeduct) {
+      const updatedMap = new Map<string, SupplyItem>();
+      supplies.forEach(s => updatedMap.set(s.id, { ...s }));
+
+      for (const item of uniqueItemsList) {
+        if (item.isCustomUnlisted) continue;
+        const matched = Array.from(updatedMap.values()).find(
+          s => s.id === item.itemId || (s.sku && item.sku && s.sku === item.sku)
+        );
+        if (matched) {
+          const previousStock = matched.stock;
+          const deductQty = item.quantity;
+          const newStock = Math.max(0, previousStock - deductQty);
+          matched.stock = newStock;
+          matched.updatedAt = nowIso;
+          updatedMap.set(matched.id, matched);
+
+          deductionLogs.push({
+            itemId: matched.id,
+            itemName: matched.name,
+            sku: matched.sku,
+            quantityDeducted: deductQty,
+            previousStock,
+            newStock,
+            timestamp: nowIso,
+          });
+
+          adjustCentralStock(matched.id, -deductQty, previousStock).catch(err => {
+            console.error(`Failed to adjust central stock for item ${matched.id}:`, err);
+          });
+        }
+      }
+
+      const newSupplies = Array.from(updatedMap.values());
+      setSupplies(newSupplies);
+      cacheLocally(newSupplies);
+    }
+
     const newSlip: CanvassSlip = {
       id: 'cnv-' + Date.now(),
       canvassNumber,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso,
       companyName: details.companyName?.trim() || '7 Stars School and Office Supplies Depot',
       customerName: details.customerName.trim() || 'Valued Customer / Inquirer',
       departmentOrCompany: details.departmentOrCompany.trim() || 'General Procurement',
@@ -592,6 +642,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       items: uniqueItemsList,
       totalAmount,
       hasUnlistedItems,
+      orderType,
+      status: shouldAutoDeduct ? 'confirmed' : 'pending',
+      stockDeducted: shouldAutoDeduct,
+      stockDeductedAt: shouldAutoDeduct ? nowIso : undefined,
+      confirmedAt: shouldAutoDeduct ? nowIso : undefined,
+      deductionLogs: deductionLogs.length > 0 ? deductionLogs : undefined,
     };
 
     // Optimistic local update
@@ -609,6 +665,184 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSavedCanvasses(prev => prev.filter(s => s.id !== id));
     deleteCentralCanvass(id).catch(err => {
       console.error('Failed to delete canvass quotation from central database:', err);
+    });
+  };
+
+  /**
+   * Confirms an order and automatically deducts stock from the inventory catalog.
+   * Guarantees deduction happens only ONCE per order.
+   */
+  const confirmOrderAndDeductStock = async (
+    orderId: string
+  ): Promise<{ success: boolean; message: string; warnings?: string[] }> => {
+    const order = savedCanvasses.find(o => o.id === orderId);
+    if (!order) {
+      return { success: false, message: 'Order not found in records.' };
+    }
+
+    // Prevent duplicate deductions
+    if (order.stockDeducted) {
+      return {
+        success: false,
+        message: `Inventory was already deducted for Order #${order.canvassNumber} on ${
+          order.stockDeductedAt ? new Date(order.stockDeductedAt).toLocaleString() : 'a previous step'
+        }. Duplicate deduction prevented.`,
+      };
+    }
+
+    const warnings: string[] = [];
+    const deductionLogs: InventoryDeductionLog[] = [];
+    const nowIso = new Date().toISOString();
+    const updatedMap = new Map<string, SupplyItem>();
+    supplies.forEach(s => updatedMap.set(s.id, { ...s }));
+
+    for (const item of order.items) {
+      if (item.isCustomUnlisted) continue; // Unlisted items are handled as special requests
+
+      const matched = Array.from(updatedMap.values()).find(
+        s => s.id === item.itemId || (s.sku && item.sku && s.sku === item.sku)
+      );
+
+      if (matched) {
+        const previousStock = matched.stock;
+        const deductQty = item.quantity;
+        const newStock = Math.max(0, previousStock - deductQty);
+
+        if (previousStock < deductQty) {
+          warnings.push(
+            `Insufficient stock for "${matched.name}": Available: ${previousStock} ${matched.unit}, Requested: ${deductQty} ${matched.unit}. Remaining stock set to 0.`
+          );
+        }
+
+        matched.stock = newStock;
+        matched.updatedAt = nowIso;
+        updatedMap.set(matched.id, matched);
+
+        deductionLogs.push({
+          itemId: matched.id,
+          itemName: matched.name,
+          sku: matched.sku,
+          quantityDeducted: deductQty,
+          previousStock,
+          newStock,
+          timestamp: nowIso,
+        });
+
+        // Persist deduction directly to Firestore
+        adjustCentralStock(matched.id, -deductQty, previousStock).catch(err => {
+          console.error(`Failed to adjust central stock for item ${matched.id}:`, err);
+        });
+      }
+    }
+
+    // Update local inventory catalog immediately for zero-lag UI feedback
+    const newSuppliesArray = Array.from(updatedMap.values());
+    setSupplies(newSuppliesArray);
+    cacheLocally(newSuppliesArray);
+
+    // Update order with confirmed status, stockDeducted flag, and audit trail
+    const updatedOrder: CanvassSlip = {
+      ...order,
+      orderType: 'order',
+      status: 'confirmed',
+      stockDeducted: true,
+      stockDeductedAt: nowIso,
+      confirmedAt: nowIso,
+      deductionLogs,
+    };
+
+    setSavedCanvasses(prev => prev.map(o => (o.id === orderId ? updatedOrder : o)));
+    try {
+      localStorage.setItem(
+        SAVED_CANVASSES_STORAGE_KEY,
+        JSON.stringify(savedCanvasses.map(o => (o.id === orderId ? updatedOrder : o)))
+      );
+    } catch {}
+
+    await saveCentralCanvass(updatedOrder).catch(err => {
+      console.error('Failed to update confirmed order in central database:', err);
+    });
+
+    return {
+      success: true,
+      message: `Order #${order.canvassNumber} confirmed! Successfully deducted stock for ${deductionLogs.length} catalog items.`,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  };
+
+  /**
+   * Cancels a confirmed order and restores previously deducted inventory stock.
+   */
+  const cancelOrderAndRestoreStock = async (
+    orderId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const order = savedCanvasses.find(o => o.id === orderId);
+    if (!order) {
+      return { success: false, message: 'Order not found.' };
+    }
+
+    const updatedMap = new Map<string, SupplyItem>();
+    supplies.forEach(s => updatedMap.set(s.id, { ...s }));
+    let restoredCount = 0;
+
+    if (order.stockDeducted && order.deductionLogs && order.deductionLogs.length > 0) {
+      for (const log of order.deductionLogs) {
+        const supply = updatedMap.get(log.itemId);
+        if (supply) {
+          const currentStock = supply.stock;
+          const restoredStock = currentStock + log.quantityDeducted;
+          supply.stock = restoredStock;
+          supply.updatedAt = new Date().toISOString();
+          updatedMap.set(supply.id, supply);
+          restoredCount++;
+
+          adjustCentralStock(supply.id, log.quantityDeducted, currentStock).catch(err => {
+            console.error(`Failed to restore stock for item ${supply.id}:`, err);
+          });
+        }
+      }
+    }
+
+    const newSuppliesArray = Array.from(updatedMap.values());
+    setSupplies(newSuppliesArray);
+    cacheLocally(newSuppliesArray);
+
+    const updatedOrder: CanvassSlip = {
+      ...order,
+      status: 'cancelled',
+      stockDeducted: false,
+    };
+
+    setSavedCanvasses(prev => prev.map(o => (o.id === orderId ? updatedOrder : o)));
+    await saveCentralCanvass(updatedOrder).catch(err => {
+      console.error('Failed to update cancelled order in central database:', err);
+    });
+
+    return {
+      success: true,
+      message: `Order #${order.canvassNumber} cancelled.${
+        restoredCount > 0 ? ` Restored stock for ${restoredCount} items back to inventory.` : ''
+      }`,
+    };
+  };
+
+  /**
+   * Update order lifecycle status (e.g. fulfilled, pending, etc.)
+   */
+  const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<void> => {
+    const order = savedCanvasses.find(o => o.id === orderId);
+    if (!order) return;
+
+    const nowIso = new Date().toISOString();
+    const updatedOrder: CanvassSlip = {
+      ...order,
+      status,
+      fulfilledAt: status === 'fulfilled' ? nowIso : order.fulfilledAt,
+    };
+
+    setSavedCanvasses(prev => prev.map(o => (o.id === orderId ? updatedOrder : o)));
+    await saveCentralCanvass(updatedOrder).catch(err => {
+      console.error('Failed to update order status in central database:', err);
     });
   };
 
@@ -634,12 +868,24 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       clearCanvass,
       generateCanvassSlip,
       deleteCanvassSlip,
+      confirmOrderAndDeductStock,
+      cancelOrderAndRestoreStock,
+      updateOrderStatus,
       isAdmin,
       adminUsername,
       adminLogin,
       adminLogout,
     }),
-    [supplies, isPriceListLoaded, isCentralSyncActive, lastRecordedTime, canvass, savedCanvasses, isAdmin, adminUsername]
+    [
+      supplies,
+      isPriceListLoaded,
+      isCentralSyncActive,
+      lastRecordedTime,
+      canvass,
+      savedCanvasses,
+      isAdmin,
+      adminUsername,
+    ]
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
