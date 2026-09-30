@@ -15,8 +15,9 @@ function getTimestampForFilename(): string {
 }
 
 /**
- * Exports the latest and most recently recorded inventory data to an Excel (.xlsx) file.
- * Contains all fields: Generic Name, Brand, Specifications, Unit, No. of Stock, Selling Price, Buying Price, etc.
+ * Exports the latest inventory data to an Excel (.xlsx) file.
+ * The exported data details and column headers exactly match the format of the uploaded Excel file:
+ * Generic Name, Brand, Description, Unit, No. of Stock, selling price, Buying price, SKU
  */
 export function exportLatestInventoryToExcel(
   supplies: SupplyItem[],
@@ -27,98 +28,42 @@ export function exportLatestInventoryToExcel(
     return;
   }
 
-  // 1. Prepare structured data for Excel
-  const rows = supplies.map((item, index) => {
-    const stock = Number(item.stock) || 0;
-    const sellingPrice = Number(item.sellingPrice) || 0;
-    const buyingPrice = Number(item.buyingPrice) || 0;
-    const totalCostValuation = stock * buyingPrice;
-    const totalRetailValuation = stock * sellingPrice;
-    const unitMargin = sellingPrice - buyingPrice;
-    const marginPercent = sellingPrice > 0 ? ((unitMargin / sellingPrice) * 100).toFixed(1) + '%' : '0%';
+  // Exact same data details as uploaded Excel file
+  const rows = supplies.map(item => ({
+    'Generic Name': item.genericName || '',
+    'Brand': item.brand || '',
+    'Description': item.description || '',
+    'Unit': item.unit || 'Piece',
+    'No. of Stock': Number(item.stock) || 0,
+    'selling price': Number(item.sellingPrice) || 0,
+    'Buying price': Number(item.buyingPrice) || 0,
+    'SKU': item.sku || '',
+  }));
 
-    let status = 'In Stock';
-    if (stock <= 0) {
-      status = 'Out of Stock (0)';
-    } else if (stock <= (item.minStockLevel || 10)) {
-      status = 'Low Stock';
-    }
-
-    return {
-      'No.': index + 1,
-      'SKU / Code': item.sku || `SKU-${String(index + 1).padStart(4, '0')}`,
-      'Generic Name': item.genericName || '',
-      'Brand': item.brand || '',
-      'Description / Specification': item.description || '',
-      'Unit': item.unit || 'pc',
-      'No. of Stock': stock,
-      'Selling Price (PHP)': sellingPrice,
-      'Buying Price (PHP)': buyingPrice,
-      'Category': item.category || 'General Supplies',
-      'Stock Status': status,
-      'Inventory Cost Value (PHP)': Number(totalCostValuation.toFixed(2)),
-      'Inventory Selling Value (PHP)': Number(totalRetailValuation.toFixed(2)),
-      'Unit Margin (PHP)': Number(unitMargin.toFixed(2)),
-      'Margin %': marginPercent,
-      'Last Updated': item.updatedAt ? new Date(item.updatedAt).toLocaleString() : new Date().toLocaleString(),
-    };
-  });
-
-  // 2. Convert to worksheet
+  // Convert to worksheet
   const worksheet = XLSX.utils.json_to_sheet(rows);
 
-  // 3. Define column widths for a clean presentation
+  // Define column widths matching the upload template structure
   worksheet['!cols'] = [
-    { wch: 6 },  // No.
-    { wch: 14 }, // SKU
     { wch: 30 }, // Generic Name
     { wch: 18 }, // Brand
-    { wch: 42 }, // Description
+    { wch: 45 }, // Description
     { wch: 14 }, // Unit
     { wch: 14 }, // No. of Stock
-    { wch: 20 }, // Selling Price
-    { wch: 20 }, // Buying Price
-    { wch: 24 }, // Category
-    { wch: 18 }, // Stock Status
-    { wch: 26 }, // Cost Value
-    { wch: 26 }, // Selling Value
-    { wch: 18 }, // Unit Margin
-    { wch: 12 }, // Margin %
-    { wch: 22 }, // Last Updated
+    { wch: 16 }, // selling price
+    { wch: 16 }, // Buying price
+    { wch: 16 }, // SKU
   ];
 
-  // 4. Create workbook
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Latest Inventory');
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Office Supplies');
 
-  // 5. Also add an "Import Template Format" sheet for convenience
-  const importCompatibleRows = supplies.map(item => ({
-    'Generic Name': item.genericName,
-    'Brand': item.brand,
-    'Description': item.description,
-    'Unit': item.unit,
-    'No. of Stock': item.stock,
-    'selling price': item.sellingPrice,
-    'Buying price': item.buyingPrice,
-  }));
-  const templateSheet = XLSX.utils.json_to_sheet(importCompatibleRows);
-  templateSheet['!cols'] = [
-    { wch: 28 },
-    { wch: 18 },
-    { wch: 42 },
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 16 },
-  ];
-  XLSX.utils.book_append_sheet(workbook, templateSheet, 'Import Ready Template');
-
-  const filename = customFilename || `7Stars_Latest_Recorded_Inventory_${getTimestampForFilename()}.xlsx`;
+  const filename = customFilename || `7Stars_Inventory_Data_${getTimestampForFilename()}.xlsx`;
   XLSX.writeFile(workbook, filename);
 }
 
 /**
- * Exports inventory in clean standard CSV format
+ * Exports inventory in clean standard CSV format with identical upload headers
  */
 export function exportLatestInventoryToCSV(
   supplies: SupplyItem[],
@@ -130,15 +75,14 @@ export function exportLatestInventoryToCSV(
   }
 
   const exportData = supplies.map(item => ({
-    'Generic Name': item.genericName,
-    'Brand': item.brand,
-    'Description': item.description,
-    'Unit': item.unit,
-    'No. of Stock': item.stock,
-    'Selling Price': item.sellingPrice,
-    'Buying Price': item.buyingPrice,
-    'Category': item.category || 'General Supplies',
-    'Last Updated': item.updatedAt || new Date().toISOString(),
+    'Generic Name': item.genericName || '',
+    'Brand': item.brand || '',
+    'Description': item.description || '',
+    'Unit': item.unit || 'Piece',
+    'No. of Stock': Number(item.stock) || 0,
+    'selling price': Number(item.sellingPrice) || 0,
+    'Buying price': Number(item.buyingPrice) || 0,
+    'SKU': item.sku || '',
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -148,7 +92,7 @@ export function exportLatestInventoryToCSV(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = customFilename || `7Stars_Inventory_${getTimestampForFilename()}.csv`;
+  a.download = customFilename || `7Stars_Inventory_Data_${getTimestampForFilename()}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

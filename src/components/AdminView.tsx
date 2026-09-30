@@ -51,6 +51,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
     updateSupplyItem,
     updatePrices,
     deleteSupplyItem,
+    deleteMultipleSupplies,
     adjustStock,
     importExcelSupplies,
     clearAllSupplies,
@@ -61,6 +62,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
     isCentralSyncActive,
   } = useInventory();
 
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedBrand, setSelectedBrand] = useState('All');
@@ -404,70 +406,65 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    // If supplies exist, export real current recorded data structured for Excel import
-    if (supplies.length > 0) {
-      const templateData = supplies.map(item => ({
-        'Generic Name': item.genericName,
-        'Brand': item.brand || '',
-        'Description': item.description || '',
-        'Unit': item.unit || 'pc',
-        'No. of Stock': item.stock,
-        'selling price': item.sellingPrice,
-        'Buying price': item.buyingPrice,
-      }));
+  // Multiple Selection & Batch Deletion Handlers
+  const handleToggleSelectItem = (id: string) => {
+    setSelectedItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
-      const worksheet = XLSX.utils.json_to_sheet(templateData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Supplies Catalog');
+  const isAllFilteredSelected =
+    filteredSupplies.length > 0 &&
+    filteredSupplies.every(item => selectedItemIds.has(item.id));
 
-      worksheet['!cols'] = [
-        { wch: 28 },
-        { wch: 18 },
-        { wch: 42 },
-        { wch: 14 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 16 },
-      ];
-
-      XLSX.writeFile(workbook, '7Stars_Latest_Recorded_Inventory_Template.xlsx');
-      showToast(`Exported template prefilled with ${supplies.length} latest recorded items.`);
-      return;
+  const handleToggleSelectAll = () => {
+    if (isAllFilteredSelected) {
+      // Deselect all filtered items
+      setSelectedItemIds(prev => {
+        const next = new Set(prev);
+        filteredSupplies.forEach(item => next.delete(item.id));
+        return next;
+      });
+    } else {
+      // Select all filtered items
+      setSelectedItemIds(prev => {
+        const next = new Set(prev);
+        filteredSupplies.forEach(item => next.add(item.id));
+        return next;
+      });
     }
+  };
 
-    // Default sample template if inventory is empty
-    const sampleData = [
-      {
-        'Generic Name': 'Ballpen 0.5mm',
-        'Brand': 'Pilot',
-        'Description': 'Black retractable gel ink pen with comfortable grip',
-        'Unit': 'Box of 12',
-        'No. of Stock': 50,
-        'selling price': 8.50,
-        'Buying price': 5.20,
-      },
-      {
-        'Generic Name': 'Copy Paper A4 80gsm',
-        'Brand': 'PaperOne',
-        'Description': '500 sheets per ream, 96% high brightness for office printers',
-        'Unit': 'Ream',
-        'No. of Stock': 120,
-        'selling price': 6.25,
-        'Buying price': 4.10,
-      },
-    ];
+  const handleDeselectAll = () => {
+    setSelectedItemIds(new Set());
+  };
 
-    const worksheet = XLSX.utils.json_to_sheet(sampleData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Office Supplies');
-    XLSX.writeFile(workbook, 'office_supplies_inventory_template.xlsx');
-    showToast('Downloaded sample Excel template.');
+  const handleDeleteSelected = () => {
+    const count = selectedItemIds.size;
+    if (count === 0) return;
+    if (
+      window.confirm(
+        `Are you sure you want to delete ${count} selected inventory item${
+          count > 1 ? 's' : ''
+        }? This will permanently remove them from the central database and cannot be undone.`
+      )
+    ) {
+      deleteMultipleSupplies(Array.from(selectedItemIds));
+      setSelectedItemIds(new Set());
+      showToast(`Successfully deleted ${count} inventory item${count > 1 ? 's' : ''}.`);
+    }
   };
 
   const handleClearAll = () => {
     if (window.confirm('Are you sure you want to clear all inventory items? This cannot be undone.')) {
       clearAllSupplies();
+      setSelectedItemIds(new Set());
       showToast('Inventory cleared.');
     }
   };
@@ -476,6 +473,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   const renderSupplyRow = (item: SupplyItem, isZeroStock: boolean) => {
     const isEditingThisRow = editingPriceItemId === item.id;
     const isLowStock = !isZeroStock && item.stock <= (item.minStockLevel || 10);
+    const isSelected = selectedItemIds.has(item.id);
 
     // Live preview margin calculations if editing inline
     const activeBuying = isEditingThisRow ? (parseFloat(tempBuyingPrice) || 0) : item.buyingPrice;
@@ -487,13 +485,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
       <tr
         key={item.id}
         className={`transition-colors group ${
-          isEditingThisRow
+          isSelected
+            ? 'bg-blue-100/60 ring-1 ring-blue-300'
+            : isEditingThisRow
             ? 'bg-blue-50/80 ring-2 ring-blue-500/50'
             : isZeroStock
             ? 'bg-red-50/30 hover:bg-red-50/60'
             : 'hover:bg-slate-50/80'
         }`}
       >
+        {/* Checkbox for Multiple Selection */}
+        <td className="py-3 px-3 text-center">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => handleToggleSelectItem(item.id)}
+            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+            title={`Select ${item.genericName}`}
+          />
+        </td>
+
         {/* SKU */}
         <td className="py-3 px-3 font-mono font-semibold text-slate-700">
           {item.sku}
@@ -789,15 +800,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
             </div>
 
             <button
-              onClick={handleDownloadTemplate}
-              className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-blue-200 hover:text-white text-xs font-medium border border-blue-900/60 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Download formatted Excel template filled with latest recorded inventory"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden sm:inline">Excel Template</span>
-            </button>
-
-            <button
               id="admin-new-item-btn"
               onClick={handleOpenAddModal}
               className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-1.5 transition-all cursor-pointer border border-red-500/50"
@@ -1040,6 +1042,41 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
           </div>
         </div>
 
+        {/* Bulk Action Toolbar for Multiple Deletion */}
+        {selectedItemIds.size > 0 && (
+          <div className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl border border-blue-900/60 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs">
+                {selectedItemIds.size}
+              </span>
+              <div>
+                <div className="font-bold text-sm text-white">
+                  {selectedItemIds.size} item{selectedItemIds.size > 1 ? 's' : ''} selected
+                </div>
+                <span className="text-xs text-slate-400">
+                  Select multiple items to batch delete from the central inventory database
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={handleDeselectAll}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 cursor-pointer transition-colors"
+              >
+                Deselect All
+              </button>
+              <button
+                onClick={handleDeleteSelected}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-1.5 transition-all cursor-pointer border border-red-500/50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Selected ({selectedItemIds.size})</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Supplies Table */}
         {supplies.length === 0 ? (
           <div className="p-12 text-center bg-white/95 rounded-2xl border border-slate-200 shadow-xs">
@@ -1057,13 +1094,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
               >
                 <Upload className="w-4 h-4" />
                 <span>Upload Excel File</span>
-              </button>
-              <button
-                onClick={handleDownloadTemplate}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Sample Template</span>
               </button>
               <button
                 onClick={handleOpenAddModal}
@@ -1095,6 +1125,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllFilteredSelected}
+                        onChange={handleToggleSelectAll}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                        title={isAllFilteredSelected ? 'Deselect all items' : 'Select all items'}
+                      />
+                    </th>
                     <th className="py-3 px-3">SKU</th>
                     <th className="py-3 px-3">Generic Name</th>
                     <th className="py-3 px-3">Brand</th>
@@ -1125,7 +1164,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
                   {zeroStockSupplies.length > 0 && (
                     <>
                       <tr className="bg-gradient-to-r from-red-100 via-rose-50 to-red-100 border-y-2 border-red-300">
-                        <td colSpan={10} className="py-2.5 px-3">
+                        <td colSpan={11} className="py-2.5 px-3">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-red-950 font-extrabold text-xs">
                             <div className="flex items-center gap-2">
                               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />

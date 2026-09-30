@@ -35,6 +35,7 @@ interface InventoryContextType {
   updateSupplyItem: (item: SupplyItem) => void;
   updatePrices: (id: string, buyingPrice: number, sellingPrice: number) => void;
   deleteSupplyItem: (id: string) => void;
+  deleteMultipleSupplies: (ids: string[]) => void;
   adjustStock: (id: string, delta: number) => void;
   importExcelSupplies: (items: Omit<SupplyItem, 'id' | 'updatedAt'>[], mode: 'append' | 'replace') => number;
   clearAllSupplies: () => void;
@@ -400,6 +401,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     deleteCentralSupply(id).catch(err => {
       console.error('Failed to delete supply item from central database:', err);
     });
+  };
+
+  const deleteMultipleSupplies = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    // Optimistic local update
+    setSupplies(prev => prev.filter(s => !idSet.has(s.id)));
+
+    // Delete each from central Firestore database immediately
+    for (const id of ids) {
+      deleteCentralSupply(id).catch(err => {
+        console.error('Failed to delete supply item from central database:', err);
+      });
+    }
   };
 
   const clearAllSupplies = () => {
@@ -856,6 +871,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updateSupplyItem,
       updatePrices,
       deleteSupplyItem,
+      deleteMultipleSupplies,
       adjustStock,
       importExcelSupplies,
       clearAllSupplies,

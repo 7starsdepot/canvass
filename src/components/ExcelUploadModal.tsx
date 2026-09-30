@@ -4,7 +4,6 @@ import {
   X,
   Upload,
   FileSpreadsheet,
-  Download,
   AlertCircle,
   CheckCircle2,
   Table,
@@ -359,73 +358,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const templateData = [
-      {
-        'Generic Name': 'Ballpen 0.5mm',
-        'Brand': 'Pilot',
-        'Description': 'Black retractable gel ink pen with comfortable grip',
-        'Unit': 'Box of 12',
-        'No. of Stock': 50,
-        'selling price': 8.50,
-        'Buying price': 5.20,
-      },
-      {
-        'Generic Name': 'Copy Paper A4 80gsm',
-        'Brand': 'PaperOne',
-        'Description': '500 sheets per ream, 96% high brightness for office printers',
-        'Unit': 'Ream',
-        'No. of Stock': 120,
-        'selling price': 6.25,
-        'Buying price': 4.10,
-      },
-      {
-        'Generic Name': 'Sticky Notes 3x3',
-        'Brand': 'Post-it',
-        'Description': 'Classic canary yellow self-adhesive note pads, 100 sheets/pad',
-        'Unit': 'Pack of 12',
-        'No. of Stock': 45,
-        'selling price': 7.50,
-        'Buying price': 4.50,
-      },
-      {
-        'Generic Name': 'Document Folder Letter Size',
-        'Brand': 'Smead',
-        'Description': 'Heavy duty 2-pocket polypropylene report folders',
-        'Unit': 'Box of 25',
-        'No. of Stock': 30,
-        'selling price': 14.00,
-        'Buying price': 9.20,
-      },
-      {
-        'Generic Name': 'Permanent Marker Chisel Tip',
-        'Brand': 'Sharpie',
-        'Description': 'Quick-drying waterproof black ink marker',
-        'Unit': 'Pack of 4',
-        'No. of Stock': 65,
-        'selling price': 4.80,
-        'Buying price': 2.90,
-      },
-    ];
 
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Office Supplies');
-
-    // Auto-size columns
-    const colWidths = [
-      { wch: 25 }, // Generic Name
-      { wch: 15 }, // Brand
-      { wch: 40 }, // Description
-      { wch: 15 }, // Unit
-      { wch: 14 }, // No. of Stock
-      { wch: 15 }, // selling price
-      { wch: 15 }, // Buying price
-    ];
-    worksheet['!cols'] = colWidths;
-
-    XLSX.writeFile(workbook, 'office_supplies_inventory_template.xlsx');
-  };
 
   const handleConfirmImport = () => {
     const validRows = parsedRows.filter(r => r.isValid);
@@ -496,24 +429,15 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 space-y-5 overflow-y-auto flex-1">
-          {/* Instructions and Download Template Card */}
-          <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div>
-              <div className="flex items-center gap-1.5 font-bold text-blue-950 mb-1">
-                <HelpCircle className="w-4 h-4 text-blue-700" />
-                <span>Required Excel Column Fields</span>
-              </div>
-              <p className="text-blue-900 leading-relaxed">
-                Your spreadsheet must include columns: <strong className="font-semibold text-blue-950">Generic Name</strong>, <strong className="font-semibold text-blue-950">Brand</strong>, <strong className="font-semibold text-blue-950">Description</strong>, <strong className="font-semibold text-blue-950">Unit</strong>, <strong className="font-semibold text-blue-950">No. of Stock</strong>, <strong className="font-semibold text-blue-950">selling price</strong>, and <strong className="font-semibold text-blue-950">Buying price</strong>.
-              </p>
+          {/* Required Fields Information Card */}
+          <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-200 text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-blue-950 mb-1">
+              <HelpCircle className="w-4 h-4 text-blue-700" />
+              <span>Required Excel Column Fields</span>
             </div>
-            <button
-              onClick={handleDownloadTemplate}
-              className="px-3.5 py-2 rounded-xl bg-white border border-blue-300 text-blue-800 hover:bg-blue-100 font-semibold shadow-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-blue-700" />
-              <span>Download Excel Template</span>
-            </button>
+            <p className="text-blue-900 leading-relaxed">
+              Your spreadsheet must include columns: <strong className="font-semibold text-blue-950">Generic Name</strong>, <strong className="font-semibold text-blue-950">Brand</strong>, <strong className="font-semibold text-blue-950">Description</strong>, <strong className="font-semibold text-blue-950">Unit</strong>, <strong className="font-semibold text-blue-950">No. of Stock</strong>, <strong className="font-semibold text-blue-950">selling price</strong>, and <strong className="font-semibold text-blue-950">Buying price</strong> (or SKU).
+            </p>
           </div>
 
           {/* Error Message */}
