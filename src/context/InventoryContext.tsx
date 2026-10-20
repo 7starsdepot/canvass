@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { SupplyItem, CanvassItem, CanvassSlip, CustomUnlistedInput, OrderStatus, OrderItemStatus, InventoryDeductionLog } from '../types';
 import initialSuppliesData from '../data/initialSupplies.json';
+import { INITIAL_SNED_SUPPLIES } from '../data/initialSnedSupplies';
 import {
   subscribeToCentralSupplies,
   subscribeToCentralCanvasses,
   saveCentralSupply,
   updateCentralPrices,
+  updateCentralItemImage,
   adjustCentralStock,
   deleteCentralSupply,
+  batchDeleteCentralSupplies,
   batchSaveCentralSupplies,
   clearAllCentralSupplies,
   saveCentralCanvass,
@@ -34,8 +37,10 @@ interface InventoryContextType {
   addSupplyItem: (item: Omit<SupplyItem, 'id' | 'updatedAt'>) => void;
   updateSupplyItem: (item: SupplyItem) => void;
   updatePrices: (id: string, buyingPrice: number, sellingPrice: number) => void;
+  updateItemImage: (id: string, imageUrl: string) => Promise<void>;
+  addSnedSupplyItem: (item: Omit<SupplyItem, 'id' | 'updatedAt'>) => Promise<void>;
   deleteSupplyItem: (id: string) => void;
-  deleteMultipleSupplies: (ids: string[]) => void;
+  deleteMultipleSupplies: (ids: string[]) => Promise<void>;
   adjustStock: (id: string, delta: number) => void;
   importExcelSupplies: (items: Omit<SupplyItem, 'id' | 'updatedAt'>[], mode: 'append' | 'replace') => number;
   clearAllSupplies: () => void;
@@ -189,6 +194,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // Session blacklist to prevent deleted items from flashing back via delayed snapshot
+  const deletedItemIdsRef = useRef<Set<string>>(new Set());
+
   /**
    * CENTRALIZED REAL-TIME FIRESTORE SYNCHRONIZATION
    * Subscribes to live changes on the centralized Firestore 'supplies' collection.
@@ -208,12 +216,24 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       centralSupplies => {
         if (!isMounted) return;
 
-        if (centralSupplies.length > 0) {
-          setSupplies(centralSupplies);
-          cacheLocally(centralSupplies);
-        } else if (defaultCatalog.length > 0) {
-          // If Firestore is still being seeded, seed now
-          seedInitialCentralDataIfEmpty(defaultCatalog);
+        // Filter out any items marked as deleted in this session
+        const filtered = centralSupplies.filter(s => !deletedItemIdsRef.current.has(s.id));
+        setSupplies(filtered);
+        cacheLocally(filtered);
+
+        // Check if SNED materials are present; if not, seed initial SNED materials
+        const hasSned = filtered.some(s => s.isSned);
+        if (!hasSned && INITIAL_SNED_SUPPLIES.length > 0) {
+          const timestamp = Date.now();
+          const formattedSned: SupplyItem[] = INITIAL_SNED_SUPPLIES.map((item, idx) => ({
+            ...item,
+            id: `sned-${timestamp}-${idx}`,
+            name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName),
+            updatedAt: new Date().toISOString(),
+          }));
+          batchSaveCentralSupplies(formattedSned, 'append').catch(err => {
+            console.warn('Notice seeding SNED materials:', err);
+          });
         }
 
         setIsPriceListLoaded(true);
@@ -395,8 +415,13 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const deleteSupplyItem = (id: string) => {
+    deletedItemIdsRef.current.add(id);
     // Optimistic local update
-    setSupplies(prev => prev.filter(s => s.id !== id));
+    setSupplies(prev => {
+      const filtered = prev.filter(s => s.id !== id);
+      cacheLocally(filtered);
+      return filtered;
+    });
 
     // Delete from central Firestore database immediately
     deleteCentralSupply(id).catch(err => {
@@ -404,18 +429,71 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  const deleteMultipleSupplies = (ids: string[]) => {
+  const deleteMultipleSupplies = async (ids: string[]): Promise<void> => {
     if (!ids || ids.length === 0) return;
     const idSet = new Set(ids);
-    // Optimistic local update
-    setSupplies(prev => prev.filter(s => !idSet.has(s.id)));
+    ids.forEach(id => deletedItemIdsRef.current.add(id));
 
-    // Delete each from central Firestore database immediately
-    for (const id of ids) {
-      deleteCentralSupply(id).catch(err => {
-        console.error('Failed to delete supply item from central database:', err);
-      });
+    // Optimistic local update
+    setSupplies(prev => {
+      const filtered = prev.filter(s => !idSet.has(s.id));
+      cacheLocally(filtered);
+      return filtered;
+    });
+
+    // Batch delete from central Firestore database immediately
+    try {
+      await batchDeleteCentralSupplies(ids);
+    } catch (err) {
+      console.error('Failed to batch delete supply items from central database:', err);
+      // Fallback: individual deletion
+      for (const id of ids) {
+        deleteCentralSupply(id).catch(() => {});
+      }
     }
+  };
+
+  const updateItemImage = async (id: string, imageUrl: string): Promise<void> => {
+    // Optimistic local update
+    setSupplies(prev => {
+      const updated = prev.map(s => (s.id === id ? { ...s, imageUrl, updatedAt: new Date().toISOString() } : s));
+      cacheLocally(updated);
+      return updated;
+    });
+
+    // Update active canvass item picture if present
+    setCanvass(prev =>
+      prev.map(c => (c.itemId === id ? { ...c, imageUrl } : c))
+    );
+
+    // Persist to central Firestore database immediately
+    try {
+      await updateCentralItemImage(id, imageUrl);
+    } catch (err) {
+      console.error('Failed to update item picture in central database:', err);
+    }
+  };
+
+  const addSnedSupplyItem = async (item: Omit<SupplyItem, 'id' | 'updatedAt'>): Promise<void> => {
+    const newItem: SupplyItem = {
+      ...item,
+      id: 'sned-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+      isSned: true,
+      category: item.category || 'SNED Materials',
+      snedCategory: item.snedCategory || 'Sensory & Tactile',
+      name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Optimistic update
+    setSupplies(prev => {
+      const updated = [newItem, ...prev];
+      cacheLocally(updated);
+      return updated;
+    });
+
+    // Save to central Firestore database
+    await saveCentralSupply(newItem);
   };
 
   const clearAllSupplies = () => {
@@ -484,6 +562,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           quantity: Math.max(1, quantity),
           sellingPrice: supply.sellingPrice,
           buyingPrice: supply.buyingPrice,
+          imageUrl: supply.imageUrl,
+          isSned: supply.isSned,
         },
       ];
     });
@@ -898,6 +978,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       addSupplyItem,
       updateSupplyItem,
       updatePrices,
+      updateItemImage,
+      addSnedSupplyItem,
       deleteSupplyItem,
       deleteMultipleSupplies,
       adjustStock,

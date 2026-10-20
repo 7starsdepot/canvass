@@ -66,6 +66,13 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
 
   // Confirmation / processing state
   const [confirmDeductionOrder, setConfirmDeductionOrder] = useState<CanvassSlip | null>(null);
+  const [genericConfirmDialog, setGenericConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'warning' | 'error' } | null>(null);
 
@@ -223,36 +230,49 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
   };
 
   // Handle cancelling an order & restoring inventory
-  const handleCancelAndRestock = async (orderId: string, e?: React.MouseEvent) => {
+  const handleCancelAndRestock = (orderId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!window.confirm('Cancel this order and restore deducted items back to inventory stock?')) {
-      return;
-    }
-    setProcessingId(orderId);
-    try {
-      const res = await cancelOrderAndRestoreStock(orderId);
-      showToast(res.message, 'success');
-      if (selectedOrder && selectedOrder.id === orderId) {
-        const fresh = savedCanvasses.find(o => o.id === orderId);
-        if (fresh) setSelectedOrder({ ...fresh, status: 'cancelled', stockDeducted: false });
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Error cancelling order', 'error');
-    } finally {
-      setProcessingId(null);
-    }
+    setGenericConfirmDialog({
+      isOpen: true,
+      title: 'Cancel Order & Restock Inventory?',
+      description: 'Are you sure you want to cancel this order and restore deducted items back to depot warehouse inventory stock?',
+      confirmText: 'Cancel Order & Restock',
+      onConfirm: async () => {
+        setGenericConfirmDialog(null);
+        setProcessingId(orderId);
+        try {
+          const res = await cancelOrderAndRestoreStock(orderId);
+          showToast(res.message, 'success');
+          if (selectedOrder && selectedOrder.id === orderId) {
+            const fresh = savedCanvasses.find(o => o.id === orderId);
+            if (fresh) setSelectedOrder({ ...fresh, status: 'cancelled', stockDeducted: false });
+          }
+        } catch (err: any) {
+          showToast(err.message || 'Error cancelling order', 'error');
+        } finally {
+          setProcessingId(null);
+        }
+      },
+    });
   };
 
   // Handle deleting order
   const handleDeleteOrder = (orderId: string, canvassNumber: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (window.confirm(`Delete Order #${canvassNumber}? This cannot be undone.`)) {
-      deleteCanvassSlip(orderId);
-      showToast(`Order #${canvassNumber} deleted.`);
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder(null);
-      }
-    }
+    setGenericConfirmDialog({
+      isOpen: true,
+      title: `Delete Order #${canvassNumber}?`,
+      description: `Are you sure you want to permanently delete Order #${canvassNumber} from system records? This action cannot be undone.`,
+      confirmText: 'Delete Order',
+      onConfirm: () => {
+        setGenericConfirmDialog(null);
+        deleteCanvassSlip(orderId);
+        showToast(`Order #${canvassNumber} deleted.`);
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder(null);
+        }
+      },
+    });
   };
 
   // Handle changing status of an individual item in the breakdown table
@@ -1269,6 +1289,56 @@ export const OrderListDashboard: React.FC<OrderListDashboardProps> = ({
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Confirm & Deduct Stock Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generic Order Action Confirmation Modal (Iframe-safe) */}
+      {genericConfirmDialog && genericConfirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in">
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col">
+            <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-slate-950 px-6 py-4 text-white flex items-center justify-between shrink-0 border-b border-rose-900/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-600 flex items-center justify-center text-white shadow-xs">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white">
+                    {genericConfirmDialog.title}
+                  </h3>
+                  <p className="text-[11px] text-rose-200/80">Order Administration</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setGenericConfirmDialog(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                {genericConfirmDialog.description}
+              </p>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setGenericConfirmDialog(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-200/70 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={genericConfirmDialog.onConfirm}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-rose-500/50"
+              >
+                <span>{genericConfirmDialog.confirmText}</span>
               </button>
             </div>
           </div>

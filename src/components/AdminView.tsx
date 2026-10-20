@@ -72,6 +72,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
+  // In-app deletion confirmation modal state (iframe-safe, zero window.confirm dependency)
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    itemCount?: number;
+    previewNames?: string[];
+    confirmButtonText: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   // Quick Price Edit States (Inline Editing in Table)
   const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(null);
   const [tempBuyingPrice, setTempBuyingPrice] = useState<string>('');
@@ -373,10 +384,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   };
 
   const handleDeleteItem = (item: SupplyItem) => {
-    if (window.confirm(`Delete "${item.brand ? item.brand + ' ' : ''}${item.genericName}" from inventory?`)) {
-      deleteSupplyItem(item.id);
-      showToast(`Deleted item "${item.genericName}".`);
-    }
+    const itemName = `${item.brand ? item.brand + ' ' : ''}${item.genericName}`;
+    setDeleteConfirmDialog({
+      isOpen: true,
+      title: `Delete Item from Inventory?`,
+      description: `Are you sure you want to permanently delete "${itemName}" (${item.sku || 'No SKU'})? This will remove it from the central inventory database.`,
+      itemCount: 1,
+      previewNames: [itemName],
+      confirmButtonText: 'Delete Item',
+      onConfirm: () => {
+        deleteSupplyItem(item.id);
+        setSelectedItemIds(prev => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
+        });
+        showToast(`Deleted item "${item.genericName}".`);
+        setDeleteConfirmDialog(null);
+      },
+    });
   };
 
   const handleExcelImport = (
@@ -448,25 +474,43 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   const handleDeleteSelected = () => {
     const count = selectedItemIds.size;
     if (count === 0) return;
-    if (
-      window.confirm(
-        `Are you sure you want to delete ${count} selected inventory item${
-          count > 1 ? 's' : ''
-        }? This will permanently remove them from the central database and cannot be undone.`
-      )
-    ) {
-      deleteMultipleSupplies(Array.from(selectedItemIds));
-      setSelectedItemIds(new Set());
-      showToast(`Successfully deleted ${count} inventory item${count > 1 ? 's' : ''}.`);
+    const selectedList = supplies.filter(s => selectedItemIds.has(s.id));
+    const previewNames = selectedList.slice(0, 4).map(s => `${s.brand ? s.brand + ' ' : ''}${s.genericName}`);
+    if (selectedList.length > 4) {
+      previewNames.push(`...and ${selectedList.length - 4} more items`);
     }
+
+    setDeleteConfirmDialog({
+      isOpen: true,
+      title: `Delete ${count} Selected Item${count > 1 ? 's' : ''}?`,
+      description: `This will permanently remove the ${count} selected item${count > 1 ? 's' : ''} from the central inventory database. This action cannot be undone.`,
+      itemCount: count,
+      previewNames,
+      confirmButtonText: `Delete ${count} Item${count > 1 ? 's' : ''}`,
+      onConfirm: async () => {
+        const idsToDelete = Array.from(selectedItemIds);
+        setSelectedItemIds(new Set());
+        setDeleteConfirmDialog(null);
+        await deleteMultipleSupplies(idsToDelete);
+        showToast(`Successfully deleted ${count} inventory item${count > 1 ? 's' : ''}.`);
+      },
+    });
   };
 
   const handleClearAll = () => {
-    if (window.confirm('Are you sure you want to clear all inventory items? This cannot be undone.')) {
-      clearAllSupplies();
-      setSelectedItemIds(new Set());
-      showToast('Inventory cleared.');
-    }
+    setDeleteConfirmDialog({
+      isOpen: true,
+      title: 'Clear Entire Inventory Database?',
+      description: `This will permanently wipe all ${supplies.length} items from the central depot catalog. This action CANNOT be reversed.`,
+      itemCount: supplies.length,
+      confirmButtonText: 'Wipe All Inventory',
+      onConfirm: () => {
+        clearAllSupplies();
+        setSelectedItemIds(new Set());
+        showToast('Inventory cleared.');
+        setDeleteConfirmDialog(null);
+      },
+    });
   };
 
   // Render individual row with direct inline price editing capabilities
@@ -511,14 +555,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
         </td>
 
         {/* Generic Name */}
-        <td className="py-3 px-3 font-bold text-slate-900 max-w-[180px]">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span>{item.genericName || item.name}</span>
-            {item.category && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-100 font-normal">
-                {item.category}
-              </span>
+        <td className="py-3 px-3 font-bold text-slate-900 max-w-[200px]">
+          <div className="flex items-center gap-2">
+            {item.imageUrl && (
+              <img
+                src={item.imageUrl}
+                alt={item.genericName}
+                className="w-8 h-8 rounded-md object-cover border border-slate-200 shrink-0"
+              />
             )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="truncate block">{item.genericName || item.name}</span>
+                {item.isSned && (
+                  <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200 font-bold">
+                    🧩 SNED
+                  </span>
+                )}
+                {item.category && !item.isSned && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-100 font-normal">
+                    {item.category}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </td>
 
@@ -1208,6 +1268,75 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
           </div>
         )}
       </div>
+      )}
+
+      {/* Delete Confirmation In-App Modal (Iframe-safe, zero window.confirm dependency) */}
+      {deleteConfirmDialog && deleteConfirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in">
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col">
+            <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-red-950 px-6 py-4 text-white flex items-center justify-between shrink-0 border-b border-rose-900/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-600 flex items-center justify-center text-white shadow-xs">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white">
+                    {deleteConfirmDialog.title}
+                  </h3>
+                  <p className="text-[11px] text-rose-200/80">Permanent Database Deletion</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeleteConfirmDialog(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                {deleteConfirmDialog.description}
+              </p>
+
+              {deleteConfirmDialog.previewNames && deleteConfirmDialog.previewNames.length > 0 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 block">
+                    Selected Items Preview:
+                  </span>
+                  <ul className="list-disc pl-4 space-y-1 font-medium text-slate-700">
+                    {deleteConfirmDialog.previewNames.map((name, idx) => (
+                      <li key={idx} className="truncate">{name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>This action cannot be undone. Data will be removed immediately from central database storage.</span>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmDialog(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-200/70 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={deleteConfirmDialog.onConfirm}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-red-500/50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{deleteConfirmDialog.confirmButtonText}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Item Form Modal (Full Item Editor) */}

@@ -15,6 +15,9 @@
         "quantity": { "type": "number" },
         "sku": { "type": "string" },
         "category": { "type": "string" },
+        "isSned": { "type": "boolean" },
+        "imageUrl": { "type": "string" },
+        "snedCategory": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
       "required": ["genericName", "unit", "buyingPrice", "sellingPrice", "quantity"]

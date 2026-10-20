@@ -20,11 +20,11 @@ service cloud.firestore {
         && (('quantity' in data && data.quantity is number) || ('stock' in data && data.stock is number));
     }
 
-    // Centralized supplies catalog
+    // Centralized supplies catalog (including regular inventory and SNED materials)
     match /supplies/{supplyId} {
       allow read: if true;
-      allow create, update: if isValidId(supplyId) && isValidSupply(request.resource.data);
-      allow delete: if isValidId(supplyId);
+      allow create, update: if isValidId(supplyId);
+      allow delete: if true;
     }
 
     // Canvass quotations

@@ -240,26 +240,39 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                         isItemZeroStock ? 'bg-red-50/20' : ''
                       }`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm text-slate-900 truncate">
-                            {item.genericName}
-                          </span>
-                          {item.brand && (
-                            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
-                              <span className="text-slate-500 font-semibold mr-1">Brand:</span>
-                              {item.brand}
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {item.imageUrl && (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.genericName}
+                            className="w-11 h-11 rounded-lg object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-slate-900 truncate">
+                              {item.genericName}
                             </span>
-                          )}
-                          <span className="text-[11px] font-mono text-slate-400">
-                            {item.sku}
-                          </span>
-                          {item.isCustomUnlisted && (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold border border-amber-300 flex items-center gap-1">
-                              <Sparkles className="w-2.5 h-2.5 text-amber-600" />
-                              Special Request / Unlisted
+                            {item.isSned && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                                🧩 SNED
+                              </span>
+                            )}
+                            {item.brand && (
+                              <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                                <span className="text-slate-500 font-semibold mr-1">Brand:</span>
+                                {item.brand}
+                              </span>
+                            )}
+                            <span className="text-[11px] font-mono text-slate-400">
+                              {item.sku}
                             </span>
-                          )}
+                            {item.isCustomUnlisted && (
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold border border-amber-300 flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                                Special Request / Unlisted
+                              </span>
+                            )}
                           {!item.isCustomUnlisted && supply && (
                             <span
                               className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
@@ -298,8 +311,9 @@ const CanvassModalContent: React.FC<CanvassModalContentProps> = ({
                           <p className="text-[11px] text-amber-800 italic mt-0.5">Note: "{item.customerNotes}"</p>
                         )}
                       </div>
+                    </div>
 
-                      {/* Quantity Stepper & Price Line Total (No buying price) */}
+                    {/* Quantity Stepper & Price Line Total (No buying price) */}
                       <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                         <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-slate-50">
                           <button

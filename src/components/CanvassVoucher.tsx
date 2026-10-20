@@ -413,6 +413,11 @@ const CanvassVoucherModal: React.FC<CanvassVoucherModalProps> = ({ slip, onClose
                       <td className="py-2 px-1.5 print:py-1 text-slate-400 font-mono">{index + 1}</td>
                       <td className="py-2 px-1.5 print:py-1 font-mono text-slate-500">
                         <span>{item.sku || `ITEM-${index + 1}`}</span>
+                        {item.isSned && (
+                          <span className="block text-[8.5px] print:text-[8px] font-bold text-purple-700 uppercase tracking-tighter">
+                            [SNED Material]
+                          </span>
+                        )}
                         {item.isCustomUnlisted && (
                           <span className="block text-[8.5px] print:text-[8px] font-bold text-amber-700 uppercase tracking-tighter">
                             [Special Order]

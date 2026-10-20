@@ -34,6 +34,9 @@ export function formatFirestoreSupply(id: string, data: any): SupplyItem {
     sellingPrice: Number(data.sellingPrice || 0),
     buyingPrice: Number(data.buyingPrice || 0),
     category: data.category || 'School & Office Supplies',
+    isSned: Boolean(data.isSned),
+    imageUrl: data.imageUrl || '',
+    snedCategory: data.snedCategory || '',
     minStockLevel: data.minStockLevel,
     updatedAt: data.updatedAt || new Date().toISOString(),
   };
@@ -47,16 +50,19 @@ export function formatSupplyForStorage(item: SupplyItem) {
   return {
     id: item.id,
     sku: item.sku || '',
-    genericName: item.genericName.trim(),
+    genericName: (item.genericName || '').trim(),
     brand: (item.brand || '').trim(),
-    name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName),
+    name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName || 'Untitled Item'),
     description: (item.description || '').trim(),
-    unit: item.unit.trim() || 'pc',
+    unit: (item.unit || 'pc').trim(),
     stock: stock,
     quantity: stock, // stored for cross-compatibility
     sellingPrice: Math.max(0, Number(item.sellingPrice) || 0),
     buyingPrice: Math.max(0, Number(item.buyingPrice) || 0),
-    category: item.category || 'School & Office Supplies',
+    category: item.category || (item.isSned ? 'SNED Materials' : 'School & Office Supplies'),
+    isSned: Boolean(item.isSned),
+    imageUrl: item.imageUrl || '',
+    snedCategory: item.snedCategory || '',
     minStockLevel: item.minStockLevel ?? null,
     updatedAt: item.updatedAt || new Date().toISOString(),
   };
@@ -142,6 +148,21 @@ export async function updateCentralPrices(
 }
 
 /**
+ * Update picture/image of a supply item immediately in the central database
+ */
+export async function updateCentralItemImage(
+  id: string,
+  imageUrl: string
+): Promise<void> {
+  const docRef = doc(db, SUPPLIES_COLLECTION, id);
+  const updatedAt = new Date().toISOString();
+  await updateDoc(docRef, {
+    imageUrl,
+    updatedAt,
+  });
+}
+
+/**
  * Adjust stock quantity immediately in the central database
  */
 export async function adjustCentralStock(id: string, delta: number, currentStock: number): Promise<void> {
@@ -161,6 +182,25 @@ export async function adjustCentralStock(id: string, delta: number, currentStock
 export async function deleteCentralSupply(id: string): Promise<void> {
   const docRef = doc(db, SUPPLIES_COLLECTION, id);
   await deleteDoc(docRef);
+}
+
+/**
+ * Batch delete multiple supplies from the central database in chunks of 400
+ */
+export async function batchDeleteCentralSupplies(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 400) {
+    chunks.push(ids.slice(i, i + 400));
+  }
+
+  for (const chunk of chunks) {
+    const batch = writeBatch(db);
+    for (const id of chunk) {
+      batch.delete(doc(db, SUPPLIES_COLLECTION, id));
+    }
+    await batch.commit();
+  }
 }
 
 /**

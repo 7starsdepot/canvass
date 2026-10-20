@@ -32,6 +32,7 @@ import { formatPeso } from '../utils/currency';
 import { SevenStarsMark } from './Logo';
 import { OutOfStockEmailModal } from './OutOfStockEmailModal';
 import { AddUnlistedItemModal } from './AddUnlistedItemModal';
+import { SnedMaterialsDashboard } from './SnedMaterialsDashboard';
 import { DEPOT_EMAIL, OutOfStockEmailPayload } from '../utils/outOfStockEmail';
 
 interface CustomerViewProps {
@@ -59,7 +60,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [customerTab, setCustomerTab] = useState<'catalog' | 'history'>('catalog');
+  const [customerTab, setCustomerTab] = useState<'catalog' | 'sned' | 'history'>('catalog');
+
+  const snedSuppliesCount = useMemo(() => {
+    return supplies.filter(s => s.isSned || s.category === 'SNED Materials' || (s.sku && s.sku.startsWith('SNED-'))).length;
+  }, [supplies]);
+
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailModalPayload, setEmailModalPayload] = useState<OutOfStockEmailPayload | null>(null);
   const [isAddUnlistedOpen, setIsAddUnlistedOpen] = useState(false);
@@ -403,7 +409,23 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Catalog
+              School & Office
+            </button>
+            <button
+              onClick={() => setCustomerTab('sned')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                customerTab === 'sned'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-purple-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <span>SNED Materials</span>
+              {snedSuppliesCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-purple-500/30 text-purple-200 text-[10px] font-bold">
+                  {snedSuppliesCount}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setCustomerTab('history')}
@@ -414,7 +436,7 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
               }`}
             >
               <History className="w-3.5 h-3.5" />
-              <span>Canvass History ({savedCanvasses.length})</span>
+              <span>History ({savedCanvasses.length})</span>
             </button>
           </div>
 
@@ -621,8 +643,14 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             </div>
           )}
         </div>
+      ) : customerTab === 'sned' ? (
+        /* SNED Materials Specialized Dashboard */
+        <SnedMaterialsDashboard
+          onOpenCanvass={onOpenCanvass}
+          onOpenAdminAuth={onOpenAdmin}
+        />
       ) : (
-        /* Catalog Tab */
+        /* School & Office Supplies Catalog Tab */
         <div className="space-y-4">
           {/* Global Search and Category / Brand Filters */}
           <div className="bg-white/95 backdrop-blur-xs p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-3.5">

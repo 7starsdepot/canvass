@@ -10,6 +10,9 @@ export interface SupplyItem {
   sellingPrice: number;// "selling price"
   buyingPrice: number; // "Buying price" (Admin portal only)
   category?: string;
+  isSned?: boolean;     // Special Needs Education (SNED) material
+  imageUrl?: string;   // Image / Picture URL or data URL
+  snedCategory?: string;// e.g., 'Sensory & Tactile', 'Motor Skills & Therapy', 'Speech & Communication', 'Visual Learning & Flashcards', 'Specialized Stationery & Tools'
   minStockLevel?: number;
   updatedAt: string;
 }
@@ -44,6 +47,8 @@ export interface CanvassItem {
   quantity: number;
   sellingPrice: number; // Selling price (0 if pending quotation or custom estimate)
   buyingPrice?: number; // Buying cost from inventory (for admin purchase review)
+  imageUrl?: string;    // Image thumbnail
+  isSned?: boolean;     // True if item is a SNED material
   isCustomUnlisted?: boolean; // True if customer added an unlisted item not found in catalog
   estimatedPrice?: number;    // Optional budget/target price entered by customer
   customerNotes?: string;     // Notes specific to this unlisted item
