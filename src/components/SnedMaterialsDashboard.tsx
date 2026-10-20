@@ -105,6 +105,7 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
     supplies,
     canvass,
     addToCanvass,
+    addCustomUnlistedItem,
     updateItemImage,
     addSnedSupplyItem,
     isAdmin,
@@ -142,6 +143,7 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
   const [newSnedBrand, setNewSnedBrand] = useState('');
   const [newSnedCategory, setNewSnedCategory] = useState('Sensory & Tactile');
   const [newSnedUnit, setNewSnedUnit] = useState('pc');
+  const [newSnedCustomerQty, setNewSnedCustomerQty] = useState('1');
   const [newSnedSellingPrice, setNewSnedSellingPrice] = useState('');
   const [newSnedBuyingPrice, setNewSnedBuyingPrice] = useState('');
   const [newSnedStock, setNewSnedStock] = useState('10');
@@ -334,31 +336,47 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
 
     setIsSubmittingNewSned(true);
     try {
-      const sPrice = parseFloat(newSnedSellingPrice) || 0;
-      const bPrice = parseFloat(newSnedBuyingPrice) || sPrice * 0.7;
-      const stock = parseInt(newSnedStock, 10) || 10;
       const finalImage = newSnedImagePreview || newSnedImageUrl.trim() || 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?auto=format&fit=crop&w=600&q=80';
 
-      await addSnedSupplyItem({
-        sku: `SNED-${newSnedCategory.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
-        genericName: newSnedGenericName.trim(),
-        brand: newSnedBrand.trim(),
-        name: newSnedBrand.trim() ? `${newSnedBrand.trim()} ${newSnedGenericName.trim()}` : newSnedGenericName.trim(),
-        description: newSnedDesc.trim() || 'Special needs educational therapeutic material for classroom and home learning.',
-        unit: newSnedUnit.trim() || 'pc',
-        sellingPrice: sPrice,
-        buyingPrice: bPrice,
-        stock,
-        category: 'SNED Materials',
-        isSned: true,
-        snedCategory: newSnedCategory,
-        imageUrl: finalImage,
-        minStockLevel: 3,
-      });
+      if (!isAdmin) {
+        // Customer View: Adds to active canvass sheet without ability to edit selling price, buying cost, or stock
+        const customerQty = Math.max(1, parseInt(newSnedCustomerQty, 10) || 1);
+        addCustomUnlistedItem({
+          genericName: newSnedGenericName.trim(),
+          brand: newSnedBrand.trim() || undefined,
+          description: `[SNED: ${newSnedCategory}] ${newSnedDesc.trim() || 'Special needs educational therapeutic material'}`,
+          unit: newSnedUnit.trim() || 'pc',
+          quantity: customerQty,
+          customerNotes: 'Added via SNED Materials Dashboard (To Be Quoted by Depot)',
+        });
+      } else {
+        // Admin Portal / Admin Mode: Only admin can set selling price, buying price, and stock quantity
+        const sPrice = parseFloat(newSnedSellingPrice) || 0;
+        const bPrice = parseFloat(newSnedBuyingPrice) || sPrice * 0.7;
+        const stock = parseInt(newSnedStock, 10) || 10;
+
+        await addSnedSupplyItem({
+          sku: `SNED-${newSnedCategory.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+          genericName: newSnedGenericName.trim(),
+          brand: newSnedBrand.trim(),
+          name: newSnedBrand.trim() ? `${newSnedBrand.trim()} ${newSnedGenericName.trim()}` : newSnedGenericName.trim(),
+          description: newSnedDesc.trim() || 'Special needs educational therapeutic material for classroom and home learning.',
+          unit: newSnedUnit.trim() || 'pc',
+          sellingPrice: sPrice,
+          buyingPrice: bPrice,
+          stock,
+          category: 'SNED Materials',
+          isSned: true,
+          snedCategory: newSnedCategory,
+          imageUrl: finalImage,
+          minStockLevel: 3,
+        });
+      }
 
       // Reset form
       setNewSnedGenericName('');
       setNewSnedBrand('');
+      setNewSnedCustomerQty('1');
       setNewSnedSellingPrice('');
       setNewSnedBuyingPrice('');
       setNewSnedStock('10');
@@ -425,19 +443,31 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
                   className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer border border-purple-400/30"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Add SNED Material</span>
+                  <span>Add SNED to Catalog</span>
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setIsQuickUnlockOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-purple-200 hover:text-white text-xs font-semibold border border-purple-800/50 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                title="Unlock picture upload mode for depot administrators"
-              >
-                <Lock className="w-3.5 h-3.5 text-purple-400" />
-                <span>Admin: Upload Pictures</span>
-              </button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddSnedOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer border border-purple-400/30"
+                  title="Add or request an unlisted SNED material for your price canvass"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add SNED to Canvass</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsQuickUnlockOpen(true)}
+                  className="px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-purple-200 hover:text-white text-xs font-semibold border border-purple-800/50 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  title="Unlock picture upload mode for depot administrators"
+                >
+                  <Lock className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Admin Mode</span>
+                </button>
+              </div>
             )}
 
             {onOpenCanvass && (
@@ -884,9 +914,13 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base text-white">
-                    Add New SNED Material
+                    {isAdmin ? 'Admin: Add New SNED Material to Catalog' : 'Add Unlisted SNED Material to Canvass'}
                   </h3>
-                  <p className="text-[11px] text-purple-200/80">Save directly to central catalog with picture</p>
+                  <p className="text-[11px] text-purple-200/80">
+                    {isAdmin
+                      ? 'Configure permanent depot stock, buying price, and selling price'
+                      : 'Request an unlisted specialized item to include in your price quotation'}
+                  </p>
                 </div>
               </div>
               <button
@@ -947,40 +981,79 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Selling Price (₱) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newSnedSellingPrice}
-                    onChange={e => setNewSnedSellingPrice(e.target.value)}
-                    placeholder="1200"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono font-bold text-purple-900 focus:bg-white focus:border-purple-600 outline-hidden"
-                  />
+              {isAdmin ? (
+                /* Admin Only: Selling Price, Buying Cost, and Stock Quantity */
+                <div className="space-y-2 p-3 bg-purple-50/50 rounded-xl border border-purple-200">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-950">
+                    <ShieldCheck className="w-4 h-4 text-purple-700" />
+                    <span>Depot Pricing & Warehouse Inventory (Admin Portal Access)</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Selling Price (₱) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={newSnedSellingPrice}
+                        onChange={e => setNewSnedSellingPrice(e.target.value)}
+                        placeholder="1200"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-purple-900 focus:bg-white focus:border-purple-600 outline-hidden"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Buying Cost (₱)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newSnedBuyingPrice}
+                        onChange={e => setNewSnedBuyingPrice(e.target.value)}
+                        placeholder="850"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono text-slate-600 focus:bg-white focus:border-purple-600 outline-hidden"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700">Stock Qty</label>
+                      <input
+                        type="number"
+                        value={newSnedStock}
+                        onChange={e => setNewSnedStock(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold focus:bg-white focus:border-purple-600 outline-hidden"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Buying Cost (₱)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newSnedBuyingPrice}
-                    onChange={e => setNewSnedBuyingPrice(e.target.value)}
-                    placeholder="850"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-600 focus:bg-white focus:border-purple-600 outline-hidden"
-                  />
+              ) : (
+                /* Customer View: Requested Canvass Quantity with Locked Pricing/Stock Notice */
+                <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                      Quantity Needed for Canvass <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={newSnedCustomerQty}
+                      onChange={e => setNewSnedCustomerQty(e.target.value)}
+                      className="w-full sm:w-48 px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-800 focus:border-purple-600 outline-hidden"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Quantity of {newSnedUnit || 'units'} to include in your price quotation
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-purple-50/80 border border-purple-200/80 rounded-xl text-xs space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-purple-900">
+                      <Lock className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                      <span>Depot Selling Price, Buying Cost & Stock Control</span>
+                    </div>
+                    <p className="text-[11px] text-purple-800 leading-relaxed">
+                      Customers cannot edit the selling price, buying cost, or quantity of stock. These fields can only be edited by authorized staff in the <strong>Admin Portal</strong>. This item will be added to your active canvass slip as <em>"To Be Quoted"</em> for formal pricing.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Stock Qty</label>
-                  <input
-                    type="number"
-                    value={newSnedStock}
-                    onChange={e => setNewSnedStock(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold focus:bg-white focus:border-purple-600 outline-hidden"
-                  />
-                </div>
-              </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700">Description & Therapeutic Benefits</label>
@@ -1047,7 +1120,11 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
                   disabled={isSubmittingNewSned}
                   className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-md cursor-pointer border border-purple-400/30"
                 >
-                  {isSubmittingNewSned ? 'Saving Item...' : 'Save & Add to SNED Catalog'}
+                  {isSubmittingNewSned
+                    ? 'Saving...'
+                    : isAdmin
+                    ? 'Save to Central Catalog'
+                    : 'Add SNED Item to Canvass'}
                 </button>
               </div>
             </form>

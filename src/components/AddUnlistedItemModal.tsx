@@ -243,7 +243,7 @@ export const AddUnlistedItemModal: React.FC<AddUnlistedItemModalProps> = ({
             />
           </div>
 
-          {/* Quantity & Estimated Budget Price */}
+          {/* Quantity Needed & Admin-Managed Pricing Notice */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
@@ -260,28 +260,24 @@ export const AddUnlistedItemModal: React.FC<AddUnlistedItemModalProps> = ({
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                 />
               </div>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                Number of {isOtherUnit ? customUnit || 'units' : unit} to include in canvass
+              </span>
             </div>
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Target Budget / Est. Price <span className="text-slate-400 font-normal">(₱ / unit)</span>
+                Selling Price & Inventory Stock
               </label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={estimatedPrice}
-                onChange={e => setEstimatedPrice(e.target.value)}
-                placeholder="Leave blank for Depot Quote"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
-              />
-              <span className="text-[10px] text-slate-500 mt-0.5 block">
-                {lineEstimatedTotal > 0 ? (
-                  <>Est. Total: <strong className="text-slate-800 font-mono">{formatPeso(lineEstimatedTotal)}</strong></>
-                ) : (
-                  'Price will show as "To Be Quoted"'
-                )}
-              </span>
+              <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-700">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>To Be Quoted by Depot</span>
+                </div>
+                <p className="text-[10.5px] text-slate-500 leading-tight">
+                  Official selling price, buying cost, and stock are strictly set by administrators in the Admin Portal.
+                </p>
+              </div>
             </div>
           </div>
 
