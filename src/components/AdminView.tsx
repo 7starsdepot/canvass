@@ -29,6 +29,8 @@ import {
   Calendar,
   Sparkles,
   ShoppingBag,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip, CanvassItem } from '../types';
@@ -36,6 +38,7 @@ import { ItemFormModal } from './ItemFormModal';
 import { ExcelUploadModal } from './ExcelUploadModal';
 import { OutOfStockEmailModal } from './OutOfStockEmailModal';
 import { OrderListDashboard } from './OrderListDashboard';
+import { AdminPhotoUploadModal } from './AdminPhotoUploadModal';
 import { DEPOT_EMAIL, OutOfStockEmailPayload, OutOfStockItemDetail } from '../utils/outOfStockEmail';
 import { formatPeso } from '../utils/currency';
 import { exportLatestInventoryToExcel, exportLatestInventoryToCSV } from '../utils/exportInventory';
@@ -55,6 +58,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
     adjustStock,
     importExcelSupplies,
     clearAllSupplies,
+    updateItemImage,
     adminUsername,
     savedCanvasses,
     deleteCanvassSlip,
@@ -66,9 +70,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedBrand, setSelectedBrand] = useState('All');
+  const [inventoryTypeFilter, setInventoryTypeFilter] = useState<'all' | 'school' | 'sned'>('all');
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<SupplyItem | null>(null);
+  const [photoModalItem, setPhotoModalItem] = useState<SupplyItem | null>(null);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -256,6 +262,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   const zeroStockOverallCount = supplies.filter(item => item.stock <= 0).length;
   const lowStockCount = supplies.filter(item => item.stock > 0 && item.stock <= (item.minStockLevel || 10)).length;
 
+  const snedItemCount = useMemo(
+    () =>
+      supplies.filter(
+        s => s.isSned || s.category === 'SNED Materials' || (s.sku && s.sku.startsWith('SNED-'))
+      ).length,
+    [supplies]
+  );
+  const schoolItemCount = useMemo(
+    () =>
+      supplies.filter(
+        s => !s.isSned && s.category !== 'SNED Materials' && !(s.sku && s.sku.startsWith('SNED-'))
+      ).length,
+    [supplies]
+  );
+
   // Filtered Supplies
   const filteredSupplies = useMemo(() => {
     return supplies.filter(item => {
@@ -269,13 +290,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
         (item.unit && item.unit.toLowerCase().includes(q)) ||
         (item.sku && item.sku.toLowerCase().includes(q));
 
+      const isSnedItem = item.isSned || item.category === 'SNED Materials' || (item.sku && item.sku.startsWith('SNED-'));
+      const matchesType =
+        inventoryTypeFilter === 'all' ||
+        (inventoryTypeFilter === 'sned' && isSnedItem) ||
+        (inventoryTypeFilter === 'school' && !isSnedItem);
+
       const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
       const matchesBrand = selectedBrand === 'All' || item.brand === selectedBrand;
       const matchesLowStock = !showLowStockOnly || item.stock <= (item.minStockLevel || 10);
 
-      return matchesSearch && matchesCategory && matchesBrand && matchesLowStock;
+      return matchesSearch && matchesType && matchesCategory && matchesBrand && matchesLowStock;
     });
-  }, [supplies, searchQuery, selectedCategory, selectedBrand, showLowStockOnly]);
+  }, [supplies, searchQuery, inventoryTypeFilter, selectedCategory, selectedBrand, showLowStockOnly]);
 
   // Partition inventory: In-stock first, zero stock at the lowest part
   const inStockSupplies = useMemo(() => {
@@ -554,16 +581,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
           {item.sku}
         </td>
 
-        {/* Generic Name */}
-        <td className="py-3 px-3 font-bold text-slate-900 max-w-[200px]">
-          <div className="flex items-center gap-2">
-            {item.imageUrl && (
-              <img
-                src={item.imageUrl}
-                alt={item.genericName}
-                className="w-8 h-8 rounded-md object-cover border border-slate-200 shrink-0"
-              />
-            )}
+        {/* Generic Name & Picture */}
+        <td className="py-3 px-3 font-bold text-slate-900 max-w-[220px]">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setPhotoModalItem(item)}
+              className="relative group/pic w-9 h-9 rounded-lg overflow-hidden border border-slate-200 shrink-0 bg-slate-100 flex items-center justify-center cursor-pointer hover:border-purple-500 transition-colors"
+              title="Click to Upload / Change Picture (Admin View)"
+            >
+              {item.imageUrl ? (
+                <img
+                  src={item.imageUrl}
+                  alt={item.genericName}
+                  className="w-full h-full object-cover group-hover/pic:opacity-75 transition-opacity"
+                />
+              ) : (
+                <ImageIcon className="w-4 h-4 text-slate-400 group-hover/pic:text-purple-600 transition-colors stroke-1" />
+              )}
+              <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover/pic:opacity-100 flex items-center justify-center text-white transition-opacity">
+                <Camera className="w-3.5 h-3.5 text-purple-300" />
+              </div>
+            </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="truncate block">{item.genericName || item.name}</span>
@@ -750,6 +789,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
           ) : (
             /* Standard Action Buttons */
             <div className="flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPhotoModalItem(item)}
+                className="p-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-900 border border-purple-200/70 transition-colors cursor-pointer"
+                title="Upload or Change Item Picture (Admin Portal)"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={() => handleStartInlineEdit(item)}
                 className="p-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-900 border border-blue-200/70 transition-colors cursor-pointer"
@@ -1006,6 +1053,53 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
         <div className="space-y-4">
           {/* Search & Enhanced Filter Deck */}
         <div className="bg-white/95 backdrop-blur-xs p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-sm space-y-3.5">
+          {/* Department / Category Quick Filter Segment & Admin Authority Banner */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setInventoryTypeFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  inventoryTypeFilter === 'all'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                All Inventory ({supplies.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setInventoryTypeFilter('school')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  inventoryTypeFilter === 'school'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                School & Office ({schoolItemCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setInventoryTypeFilter('sned')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  inventoryTypeFilter === 'sned'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-purple-700 hover:bg-purple-100/60'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>SNED Materials ({snedItemCount})</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+              <Camera className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span>
+                <strong>Admin Picture Upload:</strong> Hover over any item photo or click <Camera className="w-3 h-3 inline text-purple-600" /> in actions to upload.
+              </span>
+            </div>
+          </div>
+
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             {/* Search Input */}
             <div className="relative flex-1">
@@ -1359,6 +1453,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
         payload={emailModalPayload}
+      />
+
+      {/* Admin Photo Upload Modal (Upload from device, paste URL, or choose preset) */}
+      <AdminPhotoUploadModal
+        isOpen={!!photoModalItem}
+        onClose={() => setPhotoModalItem(null)}
+        item={photoModalItem}
+        onSaveImage={updateItemImage}
       />
     </div>
   );

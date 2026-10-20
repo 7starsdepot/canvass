@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, PhilippinePeso, Package, AlertCircle, Star } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Save, PhilippinePeso, Package, AlertCircle, Star, Camera, Upload, Sparkles } from 'lucide-react';
 import { SupplyItem } from '../types';
 import { formatPeso } from '../utils/currency';
 import { SevenStarsMark } from './Logo';
@@ -25,7 +25,11 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const [sellingPrice, setSellingPrice] = useState(10.00);
   const [buyingPrice, setBuyingPrice] = useState(6.50);
   const [sku, setSku] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [isSned, setIsSned] = useState(false);
+  const [category, setCategory] = useState('School & Office Supplies');
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (itemToEdit) {
@@ -37,6 +41,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setSellingPrice(itemToEdit.sellingPrice);
       setBuyingPrice(itemToEdit.buyingPrice);
       setSku(itemToEdit.sku);
+      setImageUrl(itemToEdit.imageUrl || '');
+      setIsSned(Boolean(itemToEdit.isSned));
+      setCategory(itemToEdit.category || (itemToEdit.isSned ? 'SNED Materials' : 'School & Office Supplies'));
     } else {
       setGenericName('');
       setBrand('');
@@ -46,6 +53,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setSellingPrice(10.00);
       setBuyingPrice(6.50);
       setSku('SUP-' + Math.floor(100 + Math.random() * 900));
+      setImageUrl('');
+      setIsSned(false);
+      setCategory('School & Office Supplies');
     }
     setError(null);
   }, [itemToEdit, isOpen]);
@@ -97,6 +107,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
         sellingPrice: Number(sellingPrice),
         buyingPrice: Number(buyingPrice),
         minStockLevel: 10,
+        imageUrl: imageUrl.trim(),
+        isSned,
+        category: isSned ? 'SNED Materials' : category,
       },
       itemToEdit ? itemToEdit.id : undefined
     );
@@ -253,6 +266,129 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
               placeholder="e.g. BAL-001"
               className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
             />
+          </div>
+
+          {/* Category & SNED Toggle */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-purple-50/60 rounded-xl border border-purple-200">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={e => {
+                  setCategory(e.target.value);
+                  if (e.target.value === 'SNED Materials') setIsSned(true);
+                }}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
+              >
+                <option value="School & Office Supplies">School & Office Supplies</option>
+                <option value="SNED Materials">SNED Materials (Special Needs Education)</option>
+                <option value="Paper Products">Paper Products</option>
+                <option value="Writing Instruments">Writing Instruments</option>
+                <option value="Desk Accessories">Desk Accessories</option>
+                <option value="Filing & Storage">Filing & Storage</option>
+              </select>
+            </div>
+
+            <div className="flex items-center pt-5">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isSned}
+                  onChange={e => {
+                    setIsSned(e.target.checked);
+                    if (e.target.checked) setCategory('SNED Materials');
+                  }}
+                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300"
+                />
+                <span className="text-xs font-bold text-purple-900 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Mark as SNED Material</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Picture Upload in Admin View */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Camera className="w-4 h-4 text-slate-600" />
+              <span>Item Picture / Photo (Admin View Upload)</span>
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-xl bg-white border border-slate-300 overflow-hidden flex items-center justify-center shrink-0">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="Item" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-6 h-6 text-slate-300 stroke-1" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/png, image/jpeg, image/webp"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                      const img = new Image();
+                      img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_DIM = 640;
+                        let w = img.width;
+                        let h = img.height;
+                        if (w > h && w > MAX_DIM) {
+                          h = Math.round((h * MAX_DIM) / w);
+                          w = MAX_DIM;
+                        } else if (h > MAX_DIM) {
+                          w = Math.round((w * MAX_DIM) / h);
+                          h = MAX_DIM;
+                        }
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                          ctx.drawImage(img, 0, 0, w, h);
+                          setImageUrl(canvas.toDataURL('image/jpeg', 0.82));
+                        }
+                      };
+                      if (typeof ev.target?.result === 'string') img.src = ev.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Upload Image File</span>
+                  </button>
+                  {imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('')}
+                      className="text-xs text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={e => setImageUrl(e.target.value)}
+                  placeholder="Or paste image web link..."
+                  className="w-full px-2.5 py-1 text-[11px] font-mono bg-white border border-slate-200 rounded-lg outline-hidden"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Prices Section (Blue & Red Theme) */}

@@ -444,10 +444,10 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
             id="customer-add-unlisted-btn"
             onClick={() => handleOpenAddUnlisted()}
             className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-1.5 transition-all cursor-pointer border border-amber-400/40"
-            title="Add unlisted supply items to your price canvass quotation"
+            title="Add unlisted school & office supplies to your price canvass quotation"
           >
             <Sparkles className="w-4 h-4 text-amber-200" />
-            <span className="hidden sm:inline">Add</span> Unlisted Item
+            <span>+ Add School & Office Item</span>
           </button>
 
           <button
