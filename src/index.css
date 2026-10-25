@@ -97,8 +97,7 @@
     overflow: visible !important;
   }
 
-  #printable-canvass-content,
-  #stocks-in-ligao-printable-area {
+  #printable-canvass-content {
     width: 100% !important;
     max-width: 100% !important;
     padding: 0 !important;
@@ -108,6 +107,19 @@
     box-shadow: none !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  #stocks-in-ligao-printable-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    display: block !important;
   }
 
   /* When printing stocks in Ligao, hide screen-only modal parts and show printable area */

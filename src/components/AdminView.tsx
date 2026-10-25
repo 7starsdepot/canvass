@@ -1552,12 +1552,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
       />
 
       {/* Stocks in Ligao Summary & Audit Modal */}
-      <LigaoStockModal
-        isOpen={isLigaoModalOpen}
-        onClose={() => setIsLigaoModalOpen(false)}
-        supplies={supplies}
-        onAdjustStock={adjustLocationStock}
-      />
+      {isLigaoModalOpen && (
+        <LigaoStockModal
+          isOpen={isLigaoModalOpen}
+          onClose={() => setIsLigaoModalOpen(false)}
+          supplies={supplies}
+          onAdjustStock={adjustLocationStock}
+        />
+      )}
     </div>
   );
 };

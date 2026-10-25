@@ -254,6 +254,40 @@ export async function updateCentralLocationStocks(
 }
 
 /**
+ * Batch update Ligao stocks for multiple supplies in chunks of 400
+ */
+export async function batchUpdateCentralLigaoStocks(
+  updates: { id: string; stockLigao: number; stockGbtn?: number }[]
+): Promise<void> {
+  if (!updates || updates.length === 0) return;
+  const CHUNK_SIZE = 400;
+  const updatedAt = new Date().toISOString();
+
+  for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+    const chunk = updates.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+
+    for (const u of chunk) {
+      const docRef = doc(db, SUPPLIES_COLLECTION, u.id);
+      const safeLigao = Math.max(0, Number(u.stockLigao) || 0);
+      const dataToUpdate: any = {
+        stockLigao: safeLigao,
+        updatedAt,
+      };
+      if (u.stockGbtn !== undefined) {
+        const safeGbtn = Math.max(0, Number(u.stockGbtn) || 0);
+        dataToUpdate.stockGbtn = safeGbtn;
+        dataToUpdate.stock = safeGbtn + safeLigao;
+        dataToUpdate.quantity = safeGbtn + safeLigao;
+      }
+      batch.update(docRef, dataToUpdate);
+    }
+
+    await batch.commit();
+  }
+}
+
+/**
  * Delete a supply from the central database
  */
 export async function deleteCentralSupply(id: string): Promise<void> {

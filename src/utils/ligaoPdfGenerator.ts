@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { SupplyItem } from '../types';
 import { formatPeso } from './currency';
 
-export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
+export function createLigaoStocksPdf(supplies: SupplyItem[], ligaoOnly: boolean = true): jsPDF {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -20,6 +20,10 @@ export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  const itemsToInclude = ligaoOnly
+    ? supplies.filter(it => (it.stockLigao !== undefined ? it.stockLigao : 0) > 0)
+    : supplies;
 
   const totalLigaoUnits = supplies.reduce((s, it) => s + (it.stockLigao !== undefined ? it.stockLigao : 0), 0);
   const totalGbtnUnits = supplies.reduce((s, it) => s + (it.stockGbtn !== undefined ? it.stockGbtn : it.stock || 0), 0);
@@ -41,7 +45,10 @@ export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(186, 230, 253);
-  doc.text('LIGAO BRANCH STOCKS INVENTORY REPORT • OFFICIAL AUDIT', 14, 18);
+  const subtitle = ligaoOnly
+    ? `LIGAO BRANCH STOCKS INVENTORY REPORT • STOCKS IN LIGAO ONLY (${itemsToInclude.length} ITEMS)`
+    : `LIGAO BRANCH STOCKS INVENTORY REPORT • ALL SUPPLIES (${supplies.length} ITEMS)`;
+  doc.text(subtitle, 14, 18);
 
   // Right side date/time
   doc.setFontSize(8);
@@ -71,7 +78,7 @@ export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
   doc.text('ITEMS IN BRANCH:', 82, 35);
   doc.setFontSize(10);
   doc.setTextColor(21, 128, 61);
-  doc.text(`${itemsWithLigao} in-stock (${itemsZeroLigao} zero)`, 82, 41);
+  doc.text(ligaoOnly ? `${itemsWithLigao} active items recorded` : `${itemsWithLigao} in-stock (${itemsZeroLigao} zero)`, 82, 41);
 
   // Column 3: Selling Valuation
   doc.setFont('helvetica', 'bold');
@@ -92,11 +99,51 @@ export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
   doc.text(`PHP ${totalCostVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 220, 41);
 
   // Prepare table data
-  const tableData = supplies.map((item, idx) => {
+  const head = ligaoOnly
+    ? [[
+        '#',
+        'SKU',
+        'Item Generic Name',
+        'Brand',
+        'Category',
+        'Unit',
+        'Stock IN Ligao',
+        'Selling Price',
+        'Ligao Value (PHP)',
+      ]]
+    : [[
+        '#',
+        'SKU',
+        'Item Generic Name',
+        'Brand',
+        'Category',
+        'Unit',
+        'Stock IN Ligao',
+        'IN GBTN',
+        'Combined Total',
+        'Selling Price',
+        'Ligao Value (PHP)',
+      ]];
+
+  const tableData = itemsToInclude.map((item, idx) => {
     const ligaoStock = item.stockLigao !== undefined ? item.stockLigao : 0;
     const gbtnStock = item.stockGbtn !== undefined ? item.stockGbtn : item.stock || 0;
     const totalStock = ligaoStock + gbtnStock;
     const ligaoVal = ligaoStock * (item.sellingPrice || 0);
+
+    if (ligaoOnly) {
+      return [
+        idx + 1,
+        item.sku || `SUP-${idx + 1}`,
+        item.genericName || item.name || '',
+        item.brand || 'Generic',
+        item.category || (item.isSned ? 'SNED Materials' : 'Supplies'),
+        item.unit || 'pc',
+        ligaoStock,
+        `PHP ${(item.sellingPrice || 0).toFixed(2)}`,
+        `PHP ${ligaoVal.toFixed(2)}`,
+      ];
+    }
 
     return [
       idx + 1,
@@ -115,19 +162,7 @@ export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
 
   autoTable(doc, {
     startY: 48,
-    head: [[
-      '#',
-      'SKU',
-      'Item Generic Name',
-      'Brand',
-      'Category',
-      'Unit',
-      'Stock IN Ligao',
-      'IN GBTN',
-      'Combined Total',
-      'Selling Price',
-      'Ligao Value (PHP)',
-    ]],
+    head,
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -143,19 +178,31 @@ export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
       overflow: 'linebreak',
       textColor: [15, 23, 42],
     },
-    columnStyles: {
-      0: { cellWidth: 9, halign: 'center' },
-      1: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
-      2: { cellWidth: 'auto', fontStyle: 'bold' },
-      3: { cellWidth: 22 },
-      4: { cellWidth: 26 },
-      5: { cellWidth: 15, halign: 'center' },
-      6: { cellWidth: 24, halign: 'center', fontStyle: 'bold', textColor: [3, 105, 161] },
-      7: { cellWidth: 18, halign: 'center' },
-      8: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
-      9: { cellWidth: 22, halign: 'right' },
-      10: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
-    },
+    columnStyles: ligaoOnly
+      ? {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 26, halign: 'center', fontStyle: 'bold' },
+          2: { cellWidth: 'auto', fontStyle: 'bold' },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 32 },
+          5: { cellWidth: 18, halign: 'center' },
+          6: { cellWidth: 32, halign: 'center', fontStyle: 'bold', textColor: [3, 105, 161] },
+          7: { cellWidth: 28, halign: 'right' },
+          8: { cellWidth: 36, halign: 'right', fontStyle: 'bold' },
+        }
+      : {
+          0: { cellWidth: 9, halign: 'center' },
+          1: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+          2: { cellWidth: 'auto', fontStyle: 'bold' },
+          3: { cellWidth: 22 },
+          4: { cellWidth: 26 },
+          5: { cellWidth: 15, halign: 'center' },
+          6: { cellWidth: 24, halign: 'center', fontStyle: 'bold', textColor: [3, 105, 161] },
+          7: { cellWidth: 18, halign: 'center' },
+          8: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+          9: { cellWidth: 22, halign: 'right' },
+          10: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+        },
     alternateRowStyles: {
       fillColor: [248, 250, 252],
     },
@@ -183,18 +230,19 @@ export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
 /**
  * Downloads the Ligao Stocks PDF file directly to user device
  */
-export function downloadLigaoStocksPdf(supplies: SupplyItem[]) {
-  const doc = createLigaoStocksPdf(supplies);
+export function downloadLigaoStocksPdf(supplies: SupplyItem[], ligaoOnly: boolean = true) {
+  const doc = createLigaoStocksPdf(supplies, ligaoOnly);
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10);
-  doc.save(`7Stars_Stocks_In_Ligao_${dateStr}.pdf`);
+  const tag = ligaoOnly ? 'Ligao_Only' : 'Ligao_All';
+  doc.save(`7Stars_Stocks_In_${tag}_${dateStr}.pdf`);
 }
 
 /**
  * Generates Blob URL for in-app viewing or iframe PDF viewer
  */
-export function getLigaoStocksPdfBlobUrl(supplies: SupplyItem[]): string {
-  const doc = createLigaoStocksPdf(supplies);
+export function getLigaoStocksPdfBlobUrl(supplies: SupplyItem[], ligaoOnly: boolean = true): string {
+  const doc = createLigaoStocksPdf(supplies, ligaoOnly);
   const blob = doc.output('blob');
   return URL.createObjectURL(blob);
 }
@@ -213,7 +261,7 @@ function escapeHtml(text?: string | null): string {
  * Builds an official, full-fidelity Landscape A4 HTML document for printing
  * or "Save as PDF", matching the exact structure and metrics of the PDF report.
  */
-export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
+export function generateLigaoPrintHtml(supplies: SupplyItem[], ligaoOnly: boolean = true): string {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', {
     year: 'numeric',
@@ -225,6 +273,10 @@ export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
     minute: '2-digit',
   });
 
+  const itemsToInclude = ligaoOnly
+    ? supplies.filter(it => (it.stockLigao !== undefined ? it.stockLigao : 0) > 0)
+    : supplies;
+
   const totalLigaoUnits = supplies.reduce((s, it) => s + (it.stockLigao !== undefined ? it.stockLigao : 0), 0);
   const totalGbtnUnits = supplies.reduce((s, it) => s + (it.stockGbtn !== undefined ? it.stockGbtn : it.stock || 0), 0);
   const totalCombinedUnits = totalLigaoUnits + totalGbtnUnits;
@@ -235,7 +287,7 @@ export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
 
   const ligaoShare = totalCombinedUnits > 0 ? ((totalLigaoUnits / totalCombinedUnits) * 100).toFixed(1) : '0';
 
-  const tableRowsHtml = supplies
+  const tableRowsHtml = itemsToInclude
     .map((item, idx) => {
       const ligaoStock = item.stockLigao !== undefined ? item.stockLigao : 0;
       const gbtnStock = item.stockGbtn !== undefined ? item.stockGbtn : item.stock || 0;
@@ -245,17 +297,16 @@ export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
 
       return `
         <tr style="${isZero ? 'background-color: #fef2f2; color: #64748b;' : 'background-color: #ffffff;'}">
-          <td style="padding: 4px 5px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-size: 7.5pt; color: #64748b;">${idx + 1}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: 700; font-size: 7.5pt; color: #0f172a; white-space: nowrap;">${escapeHtml(item.sku || `SUP-${idx + 1}`)}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-weight: 700; font-size: 8pt; color: #0f172a;">${escapeHtml(item.genericName || item.name)}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #334155;">${escapeHtml(item.brand || '—')}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #475569;">${escapeHtml(item.category || (item.isSned ? 'SNED' : 'Supplies'))}</td>
-          <td style="padding: 4px 5px; border: 1px solid #cbd5e1; text-align: center; font-size: 7.5pt; color: #475569;">${escapeHtml(item.unit || 'pc')}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: 900; font-size: 8.5pt; background-color: #e0f2fe; color: #0369a1;">${ligaoStock}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-size: 8pt; color: #475569;">${gbtnStock}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: 700; font-size: 8pt; color: #0f172a;">${combined}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-size: 7.5pt; color: #334155;">${formatPeso(item.sellingPrice)}</td>
-          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: 700; font-size: 8pt; color: #0369a1;">${formatPeso(ligaoVal)}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-size: 7.5pt; color: #64748b;">${idx + 1}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: 700; font-size: 7.5pt; color: #0f172a; white-space: nowrap;">${escapeHtml(item.sku || `SUP-${idx + 1}`)}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; font-weight: 700; font-size: 8pt; color: #0f172a;">${escapeHtml(item.genericName || item.name)}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #334155;">${escapeHtml(item.brand || '—')}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #475569;">${escapeHtml(item.category || (item.isSned ? 'SNED' : 'Supplies'))}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: center; font-size: 7.5pt; color: #475569;">${escapeHtml(item.unit || 'pc')}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: 900; font-size: 8.5pt; background-color: #e0f2fe; color: #0369a1;">${ligaoStock}</td>
+          ${!ligaoOnly ? `<td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-size: 8pt; color: #475569;">${gbtnStock}</td><td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: 700; font-size: 8pt; color: #0f172a;">${combined}</td>` : ''}
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-size: 7.5pt; color: #334155;">${formatPeso(item.sellingPrice)}</td>
+          <td style="padding: 5px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: 700; font-size: 8pt; color: #0369a1;">${formatPeso(ligaoVal)}</td>
         </tr>
       `;
     })
@@ -377,6 +428,13 @@ export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
+    table.inventory-table td {
+      padding: 5px 6px;
+      border: 1px solid #cbd5e1;
+      font-size: 7.5pt;
+      vertical-align: middle;
+      color: #0f172a;
+    }
     .signatures-block {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -402,9 +460,27 @@ export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
       color: #94a3b8;
     }
     @media print {
-      body {
-        margin: 0;
-        padding: 0;
+      @page {
+        size: landscape;
+        margin: 8mm 10mm;
+      }
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+      .print-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        visibility: visible !important;
+        opacity: 1 !important;
       }
       .no-print {
         display: none !important;
@@ -496,13 +572,13 @@ export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
 
 /**
  * Executes direct printing of the Ligao stocks report.
- * Uses a hidden iframe writing styled Landscape A4 HTML, which avoids
- * browser PDF plugin/sandbox restrictions and triggers the native print dialog.
+ * Uses an off-screen iframe (1200x850px) with styled Landscape A4 HTML, which gives
+ * Chromium/WebKit the layout geometry needed to render all boxes, avoiding blank printouts.
  */
-export function executePrintLigaoStocks(supplies: SupplyItem[]): { success: boolean; error?: string } {
-  const html = generateLigaoPrintHtml(supplies);
+export function executePrintLigaoStocks(supplies: SupplyItem[], ligaoOnly: boolean = true): { success: boolean; error?: string } {
+  const html = generateLigaoPrintHtml(supplies, ligaoOnly);
 
-  // Strategy 1: Hidden iframe print
+  // Strategy 1: Off-screen iframe print with real dimensions
   try {
     const existing = document.getElementById('ligao-temp-print-frame');
     if (existing && existing.parentNode) {
@@ -511,42 +587,64 @@ export function executePrintLigaoStocks(supplies: SupplyItem[]): { success: bool
 
     const iframe = document.createElement('iframe');
     iframe.id = 'ligao-temp-print-frame';
+    // CRITICAL FIX: The iframe MUST have positive desktop dimensions (e.g. 1200x850px)
+    // and opacity 1 so Chromium computes all layout boxes. We move it off-screen via left: -10000px.
     iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
+    iframe.style.left = '-10000px';
+    iframe.style.top = '0';
+    iframe.style.width = '1200px';
+    iframe.style.height = '850px';
     iframe.style.border = 'none';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
+    iframe.style.zIndex = '-9999';
+    iframe.style.visibility = 'visible';
+    iframe.style.opacity = '1';
     document.body.appendChild(iframe);
 
+    let hasTriggered = false;
+    const triggerPrint = () => {
+      if (hasTriggered) return;
+      hasTriggered = true;
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e: any) {
+        console.warn('Iframe print failed, falling back to window.print():', e);
+        try {
+          window.print();
+        } catch (winErr: any) {
+          console.warn('Window print failed:', winErr);
+        }
+      }
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 5000);
+    };
+
+    // Listen for iframe load
+    iframe.onload = () => {
+      setTimeout(triggerPrint, 350);
+    };
+
+    // Write content via doc or srcdoc
     const doc = iframe.contentWindow?.document;
     if (doc) {
       doc.open();
       doc.write(html);
       doc.close();
-
-      setTimeout(() => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-          }, 3500);
-        } catch (e: any) {
-          console.warn('Iframe print failed, falling back to window.print():', e);
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-          window.print();
-        }
-      }, 350);
-
-      return { success: true };
+    } else {
+      iframe.srcdoc = html;
     }
+
+    // Safety fallback timer if onload doesn't fire
+    setTimeout(() => {
+      if (!hasTriggered) {
+        triggerPrint();
+      }
+    }, 850);
+
+    return { success: true };
   } catch (err: any) {
     console.warn('Strategy 1 failed:', err);
   }

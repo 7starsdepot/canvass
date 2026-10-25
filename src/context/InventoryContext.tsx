@@ -14,6 +14,7 @@ import {
   deleteCentralSupply,
   batchDeleteCentralSupplies,
   batchSaveCentralSupplies,
+  batchUpdateCentralLigaoStocks,
   clearAllCentralSupplies,
   saveCentralCanvass,
   deleteCentralCanvass,
@@ -46,6 +47,10 @@ interface InventoryContextType {
   adjustStock: (id: string, delta: number) => void;
   adjustLocationStock: (id: string, location: 'gbtn' | 'ligao', delta: number) => void;
   updateLocationStocks: (id: string, stockGbtn: number, stockLigao: number) => void;
+  generateLigaoOnlyStocks: (
+    strategy: 'percent_of_depot' | 'fixed' | 'realistic_mix' | 'reset_zero',
+    customValue?: number
+  ) => Promise<number>;
   importExcelSupplies: (items: Omit<SupplyItem, 'id' | 'updatedAt'>[], mode: 'append' | 'replace') => number;
   clearAllSupplies: () => void;
 
@@ -483,6 +488,65 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     updateCentralLocationStocks(id, safeGbtn, safeLigao).catch(err => {
       console.error('Failed to update location stocks in central database:', err);
     });
+  };
+
+  /**
+   * Batch generates or allocates stock quantities recorded specifically for Ligao branch
+   */
+  const generateLigaoOnlyStocks = async (
+    strategy: 'percent_of_depot' | 'fixed' | 'realistic_mix' | 'reset_zero',
+    customValue: number = 25
+  ): Promise<number> => {
+    const updates: { id: string; stockLigao: number; stockGbtn?: number }[] = [];
+    const now = new Date().toISOString();
+
+    const updatedSupplies = supplies.map(item => {
+      const gbtn = item.stockGbtn !== undefined ? item.stockGbtn : item.stock || 0;
+      let newLigao = 0;
+
+      if (strategy === 'percent_of_depot') {
+        const pct = Math.max(1, Math.min(100, customValue || 25));
+        newLigao = Math.max(1, Math.round(gbtn * (pct / 100)));
+      } else if (strategy === 'fixed') {
+        newLigao = Math.max(0, customValue ?? 15);
+      } else if (strategy === 'realistic_mix') {
+        const cat = (item.category || '').toLowerCase();
+        if (cat.includes('paper') || cat.includes('writing') || cat.includes('pen')) {
+          newLigao = 25 + (item.genericName.length % 20); // 25-45 units
+        } else if (cat.includes('desk') || cat.includes('filing') || cat.includes('organization')) {
+          newLigao = 12 + (item.genericName.length % 15); // 12-27 units
+        } else {
+          newLigao = 8 + (item.genericName.length % 12);  // 8-20 units
+        }
+      } else if (strategy === 'reset_zero') {
+        newLigao = 0;
+      }
+
+      const totalStock = gbtn + newLigao;
+      updates.push({ id: item.id, stockLigao: newLigao, stockGbtn: gbtn });
+
+      return {
+        ...item,
+        stockLigao: newLigao,
+        stockGbtn: gbtn,
+        stock: totalStock,
+        quantity: totalStock,
+        updatedAt: now,
+      };
+    });
+
+    // Optimistic local state update
+    setSupplies(updatedSupplies);
+    cacheLocally(updatedSupplies);
+
+    // Save batch to Firestore
+    try {
+      await batchUpdateCentralLigaoStocks(updates);
+    } catch (err) {
+      console.error('Failed to batch update Ligao stocks in Firestore:', err);
+    }
+
+    return updates.reduce((sum, u) => sum + u.stockLigao, 0);
   };
 
   const deleteSupplyItem = (id: string) => {
@@ -1112,6 +1176,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       adjustStock,
       adjustLocationStock,
       updateLocationStocks,
+      generateLigaoOnlyStocks,
       importExcelSupplies,
       clearAllSupplies,
       canvass,
