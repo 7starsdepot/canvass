@@ -55,16 +55,19 @@
     display: none !important;
   }
 
-  body:has(#canvass-voucher-backdrop) main:not(:has(#canvass-voucher-backdrop)) {
+  body:has(#canvass-voucher-backdrop) main:not(:has(#canvass-voucher-backdrop)),
+  body:has(#stocks-in-ligao-modal-backdrop) main:not(:has(#stocks-in-ligao-modal-backdrop)) {
     display: none !important;
   }
 
-  body:has(#canvass-voucher-backdrop) > #root > div > *:not(#canvass-voucher-backdrop):not(:has(#canvass-voucher-backdrop)) {
+  body:has(#canvass-voucher-backdrop) > #root > div > *:not(#canvass-voucher-backdrop):not(:has(#canvass-voucher-backdrop)),
+  body:has(#stocks-in-ligao-modal-backdrop) > #root > div > *:not(#stocks-in-ligao-modal-backdrop):not(:has(#stocks-in-ligao-modal-backdrop)) {
     display: none !important;
   }
 
   /* Reset modal backdrop so it doesn't render dark or fixed */
-  #canvass-voucher-backdrop {
+  #canvass-voucher-backdrop,
+  #stocks-in-ligao-modal-backdrop {
     position: static !important;
     inset: auto !important;
     background: transparent !important;
@@ -79,10 +82,12 @@
     box-shadow: none !important;
   }
 
-  #canvass-voucher-modal {
+  #canvass-voucher-modal,
+  #stocks-in-ligao-modal {
     position: static !important;
     width: 100% !important;
     max-width: 100% !important;
+    max-height: none !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -92,7 +97,8 @@
     overflow: visible !important;
   }
 
-  #printable-canvass-content {
+  #printable-canvass-content,
+  #stocks-in-ligao-printable-area {
     width: 100% !important;
     max-width: 100% !important;
     padding: 0 !important;
@@ -102,6 +108,15 @@
     box-shadow: none !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  /* When printing stocks in Ligao, hide screen-only modal parts and show printable area */
+  #stocks-in-ligao-modal > div:not(#stocks-in-ligao-printable-area) {
+    display: none !important;
+  }
+
+  #stocks-in-ligao-modal #stocks-in-ligao-printable-area {
+    display: block !important;
   }
 
   /* Keep table and signature block from splitting awkwardly across pages */

@@ -22,6 +22,7 @@ import {
   createLigaoStocksPdf,
   downloadLigaoStocksPdf,
   getLigaoStocksPdfBlobUrl,
+  executePrintLigaoStocks,
 } from '../utils/ligaoPdfGenerator';
 
 interface LigaoStockModalProps {
@@ -134,40 +135,49 @@ export const LigaoStockModal: React.FC<LigaoStockModalProps> = ({
       });
   }, [supplies, searchQuery, stockFilter, sortBy]);
 
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printFeedback, setPrintFeedback] = useState<{
+    message: string;
+    type: 'info' | 'success' | 'warn';
+  } | null>(null);
+
   const handleDownloadPdf = () => {
     downloadLigaoStocksPdf(supplies);
   };
 
   const handlePrintPdf = () => {
-    const doc = createLigaoStocksPdf(supplies);
-    doc.autoPrint();
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    iframe.src = url;
-    document.body.appendChild(iframe);
-    iframe.onload = () => {
-      try {
-        iframe.contentWindow?.print();
-      } catch (e) {
-        console.warn('Iframe print failed:', e);
-      }
-      setTimeout(() => {
-        if (document.body.contains(iframe)) document.body.removeChild(iframe);
-        URL.revokeObjectURL(url);
-      }, 2000);
-    };
-  };
+    setIsPrinting(true);
+    setPrintFeedback({
+      message: 'Preparing official Landscape A4 print document...',
+      type: 'info',
+    });
 
-  const handleOpenPdfNewTab = () => {
-    if (pdfBlobUrl) {
-      window.open(pdfBlobUrl, '_blank');
+    try {
+      const res = executePrintLigaoStocks(supplies);
+      if (!res.success) {
+        setPrintFeedback({
+          message: 'Direct print was blocked by browser. Automatically downloading PDF...',
+          type: 'warn',
+        });
+        downloadLigaoStocksPdf(supplies);
+      } else {
+        setPrintFeedback({
+          message: 'Print dialog opened! Select your printer or "Save as PDF" (Landscape A4).',
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      console.error('Print execution failed:', err);
+      setPrintFeedback({
+        message: 'Print failed in browser. Downloading PDF directly...',
+        type: 'warn',
+      });
+      downloadLigaoStocksPdf(supplies);
+    } finally {
+      setIsPrinting(false);
+      setTimeout(() => {
+        setPrintFeedback(null);
+      }, 5000);
     }
   };
 
@@ -328,6 +338,7 @@ export const LigaoStockModal: React.FC<LigaoStockModalProps> = ({
                     type="button"
                     onClick={handleDownloadPdf}
                     className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer border border-rose-400/50"
+                    title="Download official PDF document (.pdf)"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download PDF</span>
@@ -336,25 +347,77 @@ export const LigaoStockModal: React.FC<LigaoStockModalProps> = ({
                   <button
                     type="button"
                     onClick={handlePrintPdf}
-                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
-                    title="Print PDF directly"
+                    disabled={isPrinting}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
+                    title="Print official Landscape A4 Ligao inventory report"
                   >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Print PDF</span>
+                    {isPrinting ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                    ) : (
+                      <Printer className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isPrinting ? 'Opening Print...' : 'Print PDF'}</span>
                   </button>
 
                   {pdfBlobUrl && (
-                    <button
-                      type="button"
-                      onClick={handleOpenPdfNewTab}
+                    <a
+                      href={pdfBlobUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
-                      title="Open full PDF viewer in new tab"
+                      title="Open raw PDF file in new browser tab"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       <span>Full Page</span>
-                    </button>
+                    </a>
                   )}
                 </div>
+              </div>
+
+              {/* Feedback toast / banner if print triggered */}
+              {printFeedback && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 border animate-fade-in ${
+                    printFeedback.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : printFeedback.type === 'warn'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-sky-50 text-sky-800 border-sky-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {printFeedback.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                    {printFeedback.type === 'warn' && <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />}
+                    {printFeedback.type === 'info' && <RefreshCw className="w-4 h-4 text-sky-600 animate-spin shrink-0" />}
+                    <span>{printFeedback.message}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPrintFeedback(null)}
+                    className="text-slate-400 hover:text-slate-700 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Print Info helper banner */}
+              <div className="px-3.5 py-2 bg-sky-50/90 rounded-xl border border-sky-200 text-[11.5px] text-sky-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[10px] uppercase tracking-wider bg-sky-200 text-sky-800 px-1.5 py-0.5 rounded shrink-0">
+                    Print Ready
+                  </span>
+                  <span>
+                    Clicking <strong>Print PDF</strong> opens the system print dialog pre-formatted for <strong>Landscape A4</strong> (physical printer or Save as PDF).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  className="text-sky-700 hover:text-sky-900 underline font-bold shrink-0 text-left sm:text-right cursor-pointer"
+                >
+                  Download .PDF File
+                </button>
               </div>
 
               {/* Embedded PDF Viewer Iframe */}
@@ -612,11 +675,16 @@ export const LigaoStockModal: React.FC<LigaoStockModalProps> = ({
 
             <button
               onClick={handlePrintPdf}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700"
-              title="Print Ligao stocks report"
+              disabled={isPrinting}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700"
+              title="Print official Landscape A4 Ligao stocks report"
             >
-              <Printer className="w-4 h-4" />
-              <span>Print PDF</span>
+              {isPrinting ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
+              ) : (
+                <Printer className="w-4 h-4" />
+              )}
+              <span>{isPrinting ? 'Opening Print...' : 'Print PDF'}</span>
             </button>
 
             <button
@@ -625,6 +693,97 @@ export const LigaoStockModal: React.FC<LigaoStockModalProps> = ({
             >
               Close
             </button>
+          </div>
+        </div>
+
+        {/* Hidden Printable Area for Direct Browser Print (Ctrl+P / window.print) */}
+        <div id="stocks-in-ligao-printable-area" className="hidden print:block p-4">
+          <div className="bg-[#0a2540] text-white p-3.5 rounded-lg mb-3 flex justify-between items-center border-b-2 border-sky-500">
+            <div>
+              <h1 className="text-sm font-black tracking-wide">7 STARS SCHOOL & OFFICE SUPPLIES DEPOT</h1>
+              <p className="text-[10px] text-sky-200 font-bold tracking-wider uppercase">
+                Official Stocks in Ligao Branch Inventory Report
+              </p>
+            </div>
+            <div className="text-right text-[9px] text-slate-200">
+              <p>Branch: Ligao City, Albay</p>
+              <p>Audit Copy • Generated {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 mb-3 text-[10px]">
+            <div className="border border-sky-300 bg-sky-50 p-2 rounded">
+              <div className="font-bold text-sky-900 uppercase text-[8px]">Total Stocks in Ligao</div>
+              <div className="text-base font-black text-sky-950 font-mono">{totalLigaoUnits.toLocaleString()} units</div>
+            </div>
+            <div className="border border-emerald-300 bg-emerald-50 p-2 rounded">
+              <div className="font-bold text-emerald-900 uppercase text-[8px]">Active Items in Branch</div>
+              <div className="text-base font-black text-emerald-950 font-mono">{itemsWithLigaoStock} in-stock</div>
+            </div>
+            <div className="border border-blue-300 bg-blue-50 p-2 rounded">
+              <div className="font-bold text-blue-900 uppercase text-[8px]">Retail Valuation</div>
+              <div className="text-sm font-black text-blue-950 font-mono">{formatPeso(totalLigaoSellingValuation)}</div>
+            </div>
+            <div className="border border-amber-300 bg-amber-50 p-2 rounded">
+              <div className="font-bold text-amber-900 uppercase text-[8px]">Purchasing Cost</div>
+              <div className="text-sm font-black text-amber-950 font-mono">{formatPeso(totalLigaoCostValuation)}</div>
+            </div>
+          </div>
+
+          <table className="w-full text-left text-[9px] border-collapse mb-4 border border-slate-300">
+            <thead>
+              <tr className="bg-[#0c4a6e] text-white font-bold uppercase text-[8.5px]">
+                <th className="p-1.5 border border-slate-400 text-center w-6">#</th>
+                <th className="p-1.5 border border-slate-400 w-16">SKU</th>
+                <th className="p-1.5 border border-slate-400">Generic Name</th>
+                <th className="p-1.5 border border-slate-400 w-20">Brand</th>
+                <th className="p-1.5 border border-slate-400 w-20">Category</th>
+                <th className="p-1.5 border border-slate-400 text-center w-10">Unit</th>
+                <th className="p-1.5 border border-slate-400 text-center bg-sky-700 font-black w-18">Stock IN Ligao</th>
+                <th className="p-1.5 border border-slate-400 text-center w-16">IN GBTN</th>
+                <th className="p-1.5 border border-slate-400 text-center w-16">Combined</th>
+                <th className="p-1.5 border border-slate-400 text-right w-20">Selling Price</th>
+                <th className="p-1.5 border border-slate-400 text-right w-22">Ligao Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supplies.map((item, idx) => {
+                const ligaoStock = item.stockLigao !== undefined ? item.stockLigao : 0;
+                const gbtnStock = item.stockGbtn !== undefined ? item.stockGbtn : item.stock || 0;
+                const totalStock = ligaoStock + gbtnStock;
+                const val = ligaoStock * (item.sellingPrice || 0);
+                return (
+                  <tr key={item.id} className={`border-b border-slate-200 ${ligaoStock === 0 ? 'bg-slate-50 text-slate-400' : ''}`}>
+                    <td className="p-1 border border-slate-300 text-center font-mono text-slate-500">{idx + 1}</td>
+                    <td className="p-1 border border-slate-300 font-mono font-bold text-slate-800">{item.sku || `SUP-${idx + 1}`}</td>
+                    <td className="p-1 border border-slate-300 font-bold text-slate-900">{item.genericName || item.name}</td>
+                    <td className="p-1 border border-slate-300 text-slate-700">{item.brand || '—'}</td>
+                    <td className="p-1 border border-slate-300 text-slate-600">{item.category || (item.isSned ? 'SNED' : 'Supplies')}</td>
+                    <td className="p-1 border border-slate-300 text-center">{item.unit || 'pc'}</td>
+                    <td className="p-1 border border-slate-300 text-center font-bold font-mono bg-sky-100/70 text-sky-900">{ligaoStock}</td>
+                    <td className="p-1 border border-slate-300 text-center font-mono text-slate-700">{gbtnStock}</td>
+                    <td className="p-1 border border-slate-300 text-center font-mono font-bold text-slate-900">{totalStock}</td>
+                    <td className="p-1 border border-slate-300 text-right font-mono">{formatPeso(item.sellingPrice)}</td>
+                    <td className="p-1 border border-slate-300 text-right font-mono font-bold text-sky-900">{formatPeso(val)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="grid grid-cols-3 gap-6 pt-4 text-center text-[8.5px] text-slate-600 border-t border-slate-300 page-avoid-break">
+            <div>
+              <div className="h-8 border-b border-slate-400 mb-1"></div>
+              <strong>Prepared By:</strong> Depot Inventory Admin
+            </div>
+            <div>
+              <div className="h-8 border-b border-slate-400 mb-1"></div>
+              <strong>Verified By:</strong> Ligao Branch Custodian
+            </div>
+            <div>
+              <div className="h-8 border-b border-slate-400 mb-1"></div>
+              <strong>Approved By:</strong> Management Head
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { SupplyItem } from '../types';
+import { formatPeso } from './currency';
 
 export function createLigaoStocksPdf(supplies: SupplyItem[]): jsPDF {
   const doc = new jsPDF({
@@ -197,3 +198,365 @@ export function getLigaoStocksPdfBlobUrl(supplies: SupplyItem[]): string {
   const blob = doc.output('blob');
   return URL.createObjectURL(blob);
 }
+
+function escapeHtml(text?: string | null): string {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Builds an official, full-fidelity Landscape A4 HTML document for printing
+ * or "Save as PDF", matching the exact structure and metrics of the PDF report.
+ */
+export function generateLigaoPrintHtml(supplies: SupplyItem[]): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const timeStr = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const totalLigaoUnits = supplies.reduce((s, it) => s + (it.stockLigao !== undefined ? it.stockLigao : 0), 0);
+  const totalGbtnUnits = supplies.reduce((s, it) => s + (it.stockGbtn !== undefined ? it.stockGbtn : it.stock || 0), 0);
+  const totalCombinedUnits = totalLigaoUnits + totalGbtnUnits;
+  const itemsWithLigao = supplies.filter(it => (it.stockLigao !== undefined ? it.stockLigao : 0) > 0).length;
+  const itemsZeroLigao = supplies.filter(it => (it.stockLigao !== undefined ? it.stockLigao : 0) === 0).length;
+  const totalSellingVal = supplies.reduce((s, it) => s + (it.stockLigao !== undefined ? it.stockLigao : 0) * (it.sellingPrice || 0), 0);
+  const totalCostVal = supplies.reduce((s, it) => s + (it.stockLigao !== undefined ? it.stockLigao : 0) * (it.buyingPrice || 0), 0);
+
+  const ligaoShare = totalCombinedUnits > 0 ? ((totalLigaoUnits / totalCombinedUnits) * 100).toFixed(1) : '0';
+
+  const tableRowsHtml = supplies
+    .map((item, idx) => {
+      const ligaoStock = item.stockLigao !== undefined ? item.stockLigao : 0;
+      const gbtnStock = item.stockGbtn !== undefined ? item.stockGbtn : item.stock || 0;
+      const combined = ligaoStock + gbtnStock;
+      const ligaoVal = ligaoStock * (item.sellingPrice || 0);
+      const isZero = ligaoStock === 0;
+
+      return `
+        <tr style="${isZero ? 'background-color: #fef2f2; color: #64748b;' : 'background-color: #ffffff;'}">
+          <td style="padding: 4px 5px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-size: 7.5pt; color: #64748b;">${idx + 1}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: 700; font-size: 7.5pt; color: #0f172a; white-space: nowrap;">${escapeHtml(item.sku || `SUP-${idx + 1}`)}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-weight: 700; font-size: 8pt; color: #0f172a;">${escapeHtml(item.genericName || item.name)}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #334155;">${escapeHtml(item.brand || '—')}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #475569;">${escapeHtml(item.category || (item.isSned ? 'SNED' : 'Supplies'))}</td>
+          <td style="padding: 4px 5px; border: 1px solid #cbd5e1; text-align: center; font-size: 7.5pt; color: #475569;">${escapeHtml(item.unit || 'pc')}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: 900; font-size: 8.5pt; background-color: #e0f2fe; color: #0369a1;">${ligaoStock}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-size: 8pt; color: #475569;">${gbtnStock}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: center; font-family: monospace; font-weight: 700; font-size: 8pt; color: #0f172a;">${combined}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-size: 7.5pt; color: #334155;">${formatPeso(item.sellingPrice)}</td>
+          <td style="padding: 4px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: 700; font-size: 8pt; color: #0369a1;">${formatPeso(ligaoVal)}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>7 Stars Depot - Stocks in Ligao Official Inventory Report</title>
+  <style>
+    @page {
+      size: landscape A4;
+      margin: 8mm 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 8pt;
+      line-height: 1.3;
+    }
+    .print-container {
+      width: 100%;
+      padding: 10px 14px;
+    }
+    .header-bar {
+      background: #0a2540 !important;
+      color: #ffffff !important;
+      padding: 10px 16px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      border-bottom: 3px solid #0284c7;
+    }
+    .company-title {
+      font-size: 13pt;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+      margin: 0 0 2px 0;
+    }
+    .report-subtitle {
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: #bae6fd;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .header-meta {
+      text-align: right;
+      font-size: 8pt;
+      color: #e2e8f0;
+      line-height: 1.4;
+    }
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .metric-card {
+      background: #f8fafc !important;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+    .metric-label {
+      font-size: 7pt;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .metric-val {
+      font-size: 12pt;
+      font-weight: 900;
+      font-family: monospace;
+      color: #0369a1;
+    }
+    .metric-sub {
+      font-size: 7pt;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    table.inventory-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 7.5pt;
+      page-break-inside: auto;
+    }
+    table.inventory-table thead {
+      display: table-header-group;
+    }
+    table.inventory-table tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    table.inventory-table th {
+      background: #0c4a6e !important;
+      color: #ffffff !important;
+      font-weight: 700;
+      padding: 6px 6px;
+      border: 1px solid #075985;
+      text-align: left;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .signatures-block {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 20px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sig-box {
+      border-top: 1.5px solid #64748b;
+      padding-top: 4px;
+      text-align: center;
+      font-size: 7.5pt;
+      color: #475569;
+    }
+    .audit-footer {
+      margin-top: 12px;
+      padding-top: 6px;
+      border-top: 1px dashed #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      font-size: 7pt;
+      color: #94a3b8;
+    }
+    @media print {
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-container">
+    <div class="header-bar">
+      <div>
+        <div class="company-title">7 STARS SCHOOL & OFFICE SUPPLIES DEPOT</div>
+        <div class="report-subtitle">Official Stocks in Ligao Branch Inventory Report</div>
+      </div>
+      <div class="header-meta">
+        <div><strong>Date:</strong> ${dateStr} ${timeStr}</div>
+        <div><strong>Location:</strong> Ligao City Branch, Albay</div>
+        <div><strong>Status:</strong> Official Audit Copy</div>
+      </div>
+    </div>
+
+    <div class="metrics-bar">
+      <div class="metric-card" style="border-left: 3px solid #0284c7;">
+        <div class="metric-label">Total Stocks in Ligao</div>
+        <div class="metric-val">${totalLigaoUnits.toLocaleString()} units</div>
+        <div class="metric-sub">${ligaoShare}% of total depot stock</div>
+      </div>
+      <div class="metric-card" style="border-left: 3px solid #16a34a;">
+        <div class="metric-label">Active Items in Branch</div>
+        <div class="metric-val" style="color: #15803d;">${itemsWithLigao} items</div>
+        <div class="metric-sub">${itemsZeroLigao} items currently at 0 stock</div>
+      </div>
+      <div class="metric-card" style="border-left: 3px solid #2563eb;">
+        <div class="metric-label">Retail Selling Valuation</div>
+        <div class="metric-val" style="color: #1d4ed8;">${formatPeso(totalSellingVal)}</div>
+        <div class="metric-sub">Branch selling price value</div>
+      </div>
+      <div class="metric-card" style="border-left: 3px solid #d97706;">
+        <div class="metric-label">Purchasing Cost (Capital)</div>
+        <div class="metric-val" style="color: #b45309;">${formatPeso(totalCostVal)}</div>
+        <div class="metric-sub">Cost invested in branch stock</div>
+      </div>
+    </div>
+
+    <table class="inventory-table">
+      <thead>
+        <tr>
+          <th style="width: 28px; text-align: center;">#</th>
+          <th style="width: 75px;">SKU</th>
+          <th>Generic Name / Item</th>
+          <th style="width: 85px;">Brand</th>
+          <th style="width: 85px;">Category</th>
+          <th style="width: 40px; text-align: center;">Unit</th>
+          <th style="width: 85px; text-align: center; background-color: #0369a1 !important;">Stock IN Ligao</th>
+          <th style="width: 65px; text-align: center;">IN GBTN</th>
+          <th style="width: 75px; text-align: center;">Total Stock</th>
+          <th style="width: 80px; text-align: right;">Selling Price</th>
+          <th style="width: 90px; text-align: right;">Ligao Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tableRowsHtml}
+      </tbody>
+    </table>
+
+    <div class="signatures-block">
+      <div class="sig-box">
+        <strong>Prepared By:</strong><br>
+        Depot Inventory Admin / Encoder
+      </div>
+      <div class="sig-box">
+        <strong>Verified By:</strong><br>
+        Ligao Branch Custodian / Receiving Officer
+      </div>
+      <div class="sig-box">
+        <strong>Approved By:</strong><br>
+        General Management / Depot Head
+      </div>
+    </div>
+
+    <div class="audit-footer">
+      <div>CONFIDENTIAL • 7 STARS SCHOOL & OFFICE SUPPLIES DEPOT</div>
+      <div>Official Ligao Branch Audit Document • Generated ${dateStr}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Executes direct printing of the Ligao stocks report.
+ * Uses a hidden iframe writing styled Landscape A4 HTML, which avoids
+ * browser PDF plugin/sandbox restrictions and triggers the native print dialog.
+ */
+export function executePrintLigaoStocks(supplies: SupplyItem[]): { success: boolean; error?: string } {
+  const html = generateLigaoPrintHtml(supplies);
+
+  // Strategy 1: Hidden iframe print
+  try {
+    const existing = document.getElementById('ligao-temp-print-frame');
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'ligao-temp-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 3500);
+        } catch (e: any) {
+          console.warn('Iframe print failed, falling back to window.print():', e);
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+          window.print();
+        }
+      }, 350);
+
+      return { success: true };
+    }
+  } catch (err: any) {
+    console.warn('Strategy 1 failed:', err);
+  }
+
+  // Strategy 2: Direct window.print()
+  try {
+    window.print();
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Print blocked by browser environment' };
+  }
+}
+
