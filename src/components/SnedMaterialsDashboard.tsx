@@ -79,6 +79,14 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
     });
   }, [supplies]);
 
+  // Helper to combine stock from GBTN and Ligao locations into one total stock quantity
+  const getCombinedStock = (item: SupplyItem): number => {
+    if (item.stockGbtn !== undefined || item.stockLigao !== undefined) {
+      return (item.stockGbtn ?? 0) + (item.stockLigao ?? 0);
+    }
+    return item.stock ?? 0;
+  };
+
   // Filtered and sorted SNED supplies
   const filteredSnedSupplies = useMemo(() => {
     return snedSupplies
@@ -102,7 +110,8 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
           (selectedCategory === 'Visual Learning & Flashcards' && (item.snedCategory?.includes('Visual') || item.genericName.toLowerCase().includes('flashcard') || item.genericName.toLowerCase().includes('timer'))) ||
           (selectedCategory === 'Specialized Stationery & Tools' && (item.snedCategory?.includes('Stationery') || item.genericName.toLowerCase().includes('grip') || item.genericName.toLowerCase().includes('slope')));
 
-        const matchesStock = !inStockOnly || item.stock > 0;
+        const totalStock = getCombinedStock(item);
+        const matchesStock = !inStockOnly || totalStock > 0;
 
         return matchesSearch && matchesCategory && matchesStock;
       })
@@ -111,8 +120,10 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
         if (sortBy === 'price-desc') return b.sellingPrice - a.sellingPrice;
         if (sortBy === 'name-asc') return a.genericName.localeCompare(b.genericName);
         // Default: in-stock first, then alphabetically
-        if (a.stock > 0 && b.stock <= 0) return -1;
-        if (a.stock <= 0 && b.stock > 0) return 1;
+        const aStock = getCombinedStock(a);
+        const bStock = getCombinedStock(b);
+        if (aStock > 0 && bStock <= 0) return -1;
+        if (aStock <= 0 && bStock > 0) return 1;
         return a.genericName.localeCompare(b.genericName);
       });
   }, [snedSupplies, searchQuery, selectedCategory, inStockOnly, sortBy]);
@@ -362,7 +373,8 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {filteredSnedSupplies.map(item => {
             const qty = getQuantity(item.id);
-            const isZeroStock = item.stock <= 0;
+            const totalStock = getCombinedStock(item);
+            const isZeroStock = totalStock <= 0;
             const isRecentlyAdded = justAddedId === item.id;
             const inCart = canvass.find(c => c.itemId === item.id);
 
@@ -460,7 +472,7 @@ export const SnedMaterialsDashboard: React.FC<SnedMaterialsDashboardProps> = ({
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            {item.stock} in stock
+                            {totalStock} in stock
                           </span>
                         )}
                       </div>

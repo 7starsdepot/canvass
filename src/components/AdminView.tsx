@@ -31,6 +31,7 @@ import {
   ShoppingBag,
   Camera,
   Image as ImageIcon,
+  Building2,
 } from 'lucide-react';
 import { useInventory } from '../context/InventoryContext';
 import { SupplyItem, CanvassSlip, CanvassItem } from '../types';
@@ -39,6 +40,7 @@ import { ExcelUploadModal } from './ExcelUploadModal';
 import { OutOfStockEmailModal } from './OutOfStockEmailModal';
 import { OrderListDashboard } from './OrderListDashboard';
 import { AdminPhotoUploadModal } from './AdminPhotoUploadModal';
+import { LigaoStockModal } from './LigaoStockModal';
 import { DEPOT_EMAIL, OutOfStockEmailPayload, OutOfStockItemDetail } from '../utils/outOfStockEmail';
 import { formatPeso } from '../utils/currency';
 import { exportLatestInventoryToExcel, exportLatestInventoryToCSV } from '../utils/exportInventory';
@@ -56,6 +58,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
     deleteSupplyItem,
     deleteMultipleSupplies,
     adjustStock,
+    adjustLocationStock,
+    updateLocationStocks,
     importExcelSupplies,
     clearAllSupplies,
     updateItemImage,
@@ -76,6 +80,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   const [itemToEdit, setItemToEdit] = useState<SupplyItem | null>(null);
   const [photoModalItem, setPhotoModalItem] = useState<SupplyItem | null>(null);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [isLigaoModalOpen, setIsLigaoModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
   // In-app deletion confirmation modal state (iframe-safe, zero window.confirm dependency)
@@ -261,6 +266,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
     totalSellingValuation > 0 ? (potentialGrossProfit / totalSellingValuation) * 100 : 0;
   const zeroStockOverallCount = supplies.filter(item => item.stock <= 0).length;
   const lowStockCount = supplies.filter(item => item.stock > 0 && item.stock <= (item.minStockLevel || 10)).length;
+  const totalLigaoStockUnits = supplies.reduce((sum, item) => sum + (item.stockLigao !== undefined ? item.stockLigao : 0), 0);
+  const totalGbtnStockUnits = supplies.reduce((sum, item) => sum + (item.stockGbtn !== undefined ? item.stockGbtn : item.stock || 0), 0);
 
   const snedItemCount = useMemo(
     () =>
@@ -541,9 +548,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
   };
 
   // Render individual row with direct inline price editing capabilities
-  const renderSupplyRow = (item: SupplyItem, isZeroStock: boolean) => {
+  const renderSupplyRow = (item: SupplyItem, isZeroStockRow: boolean) => {
     const isEditingThisRow = editingPriceItemId === item.id;
-    const isLowStock = !isZeroStock && item.stock <= (item.minStockLevel || 10);
+    const gbtnStock = item.stockGbtn !== undefined ? item.stockGbtn : (item.stock || 0);
+    const ligaoStock = item.stockLigao !== undefined ? item.stockLigao : 0;
+    const totalCombinedStock = gbtnStock + ligaoStock;
+    const isZeroStock = totalCombinedStock <= 0;
+    const isLowStock = !isZeroStock && totalCombinedStock <= (item.minStockLevel || 10);
     const isSelected = selectedItemIds.has(item.id);
 
     // Live preview margin calculations if editing inline
@@ -643,43 +654,74 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
           {item.unit}
         </td>
 
-        {/* No. of Stock with Quick Controls */}
-        <td className="py-3 px-3 text-center whitespace-nowrap">
-          <div className="inline-flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs">
+        {/* IN GBTN Stock with Quick Controls */}
+        <td className="py-3 px-2 text-center whitespace-nowrap bg-amber-50/20 border-l border-amber-100">
+          <div className="inline-flex items-center gap-1 bg-white px-1.5 py-1 rounded-lg border border-amber-200 shadow-2xs">
             <button
-              onClick={() => adjustStock(item.id, -1)}
-              className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 cursor-pointer"
-              title="Decrease stock"
+              onClick={() => adjustLocationStock(item.id, 'gbtn', -1)}
+              className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-amber-900 hover:bg-amber-100 cursor-pointer font-bold text-xs"
+              title="Decrease GBTN stock"
             >
               -
             </button>
             <span
-              className={`font-black px-1 min-w-[28px] text-center ${
-                isZeroStock
+              className={`font-black px-1 min-w-[24px] text-center text-xs ${
+                gbtnStock === 0
                   ? 'text-red-600'
-                  : isLowStock
+                  : gbtnStock <= 5
                   ? 'text-amber-600'
                   : 'text-slate-800'
               }`}
             >
-              {item.stock}
+              {gbtnStock}
             </span>
             <button
-              onClick={() => adjustStock(item.id, 1)}
-              className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 cursor-pointer"
-              title="Increase stock"
+              onClick={() => adjustLocationStock(item.id, 'gbtn', 1)}
+              className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-amber-900 hover:bg-amber-100 cursor-pointer font-bold text-xs"
+              title="Increase GBTN stock"
             >
               +
             </button>
           </div>
-          {isZeroStock && (
-            <span className="block text-[10px] text-red-600 font-bold mt-0.5">
-              0 Stock
+          {gbtnStock === 0 && (
+            <span className="block text-[9px] text-red-600 font-bold mt-0.5">
+              0 GBTN
             </span>
           )}
-          {isLowStock && (
-            <span className="block text-[10px] text-amber-600 font-bold mt-0.5">
-              Low Stock
+        </td>
+
+        {/* IN Ligao Stock with Quick Controls */}
+        <td className="py-3 px-2 text-center whitespace-nowrap bg-sky-50/20 border-l border-sky-100">
+          <div className="inline-flex items-center gap-1 bg-white px-1.5 py-1 rounded-lg border border-sky-200 shadow-2xs">
+            <button
+              onClick={() => adjustLocationStock(item.id, 'ligao', -1)}
+              className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-sky-900 hover:bg-sky-100 cursor-pointer font-bold text-xs"
+              title="Decrease Ligao stock"
+            >
+              -
+            </button>
+            <span
+              className={`font-black px-1 min-w-[24px] text-center text-xs ${
+                ligaoStock === 0
+                  ? 'text-red-600'
+                  : ligaoStock <= 5
+                  ? 'text-sky-600'
+                  : 'text-slate-800'
+              }`}
+            >
+              {ligaoStock}
+            </span>
+            <button
+              onClick={() => adjustLocationStock(item.id, 'ligao', 1)}
+              className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-sky-900 hover:bg-sky-100 cursor-pointer font-bold text-xs"
+              title="Increase Ligao stock"
+            >
+              +
+            </button>
+          </div>
+          {ligaoStock === 0 && (
+            <span className="block text-[9px] text-red-600 font-bold mt-0.5">
+              0 Ligao
             </span>
           )}
         </td>
@@ -877,6 +919,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
 
           {/* Action Buttons Toolbar */}
           <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto relative z-10">
+            {/* Stocks in Ligao Summary Button (PDF View) */}
+            <button
+              id="admin-stocks-in-ligao-btn"
+              onClick={() => setIsLigaoModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all cursor-pointer border border-sky-400/60"
+              title="View and download Stocks in Ligao official PDF report"
+            >
+              <FileText className="w-4 h-4 text-sky-200" />
+              <span>Stocks in Ligao</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                PDF
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-sky-950/70 text-sky-200 text-xs font-mono font-extrabold border border-sky-400/40">
+                {totalLigaoStockUnits} units
+              </span>
+            </button>
+
             <button
               id="admin-upload-excel-btn"
               onClick={() => setIsExcelModalOpen(true)}
@@ -956,9 +1015,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
               <span>Catalog Records</span>
               <Boxes className="w-4 h-4 text-blue-400" />
             </div>
-            <div className="text-2xl font-black text-white">{totalItemCount}</div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-2xl font-black text-white">{totalItemCount}</span>
+              <button
+                type="button"
+                onClick={() => setIsLigaoModalOpen(true)}
+                className="text-[11px] font-bold text-sky-300 hover:text-white bg-sky-950/80 hover:bg-sky-800/80 px-2 py-0.5 rounded-lg border border-sky-600/50 flex items-center gap-1 cursor-pointer transition-colors"
+                title="View total stocks in Ligao"
+              >
+                <Building2 className="w-3 h-3 text-sky-400" />
+                <span>Ligao: {totalLigaoStockUnits}</span>
+              </button>
+            </div>
             <div className="text-[11px] text-slate-300 mt-1 flex items-center justify-between">
-              <span>{totalStockUnits} stock units</span>
+              <span>{totalStockUnits} total stock units</span>
               {zeroStockOverallCount > 0 && (
                 <span className="text-red-400 font-bold bg-red-950/80 px-1.5 py-0.2 rounded border border-red-800">
                   {zeroStockOverallCount} zero stock
@@ -1293,7 +1363,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
                     <th className="py-3 px-3">Brand</th>
                     <th className="py-3 px-3">Description</th>
                     <th className="py-3 px-3">Unit</th>
-                    <th className="py-3 px-3 text-center">No. of Stock</th>
+                    <th className="py-3 px-2 text-center bg-amber-50/80 text-amber-950 border-l border-amber-200">
+                      <div className="flex flex-col items-center">
+                        <span className="font-bold">IN GBTN</span>
+                        <span className="text-[9px] font-medium text-amber-700 tracking-normal normal-case">Depot Stock</span>
+                      </div>
+                    </th>
+                    <th className="py-3 px-2 text-center bg-sky-50/80 text-sky-950 border-l border-sky-200">
+                      <button
+                        type="button"
+                        onClick={() => setIsLigaoModalOpen(true)}
+                        className="flex flex-col items-center mx-auto hover:text-sky-700 cursor-pointer group"
+                        title="Click to view Stocks in Ligao official PDF report"
+                      >
+                        <span className="font-bold group-hover:underline">IN Ligao</span>
+                        <span className="text-[9px] font-medium text-sky-700 tracking-normal normal-case">
+                          Branch Stock ({totalLigaoStockUnits})
+                        </span>
+                      </button>
+                    </th>
                     <th className="py-3 px-3 text-right bg-red-50/70 text-red-950 border-l border-red-100">
                       <div className="flex items-center justify-end gap-1">
                         <span>Buying Price (Cost)</span>
@@ -1318,7 +1406,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
                   {zeroStockSupplies.length > 0 && (
                     <>
                       <tr className="bg-gradient-to-r from-red-100 via-rose-50 to-red-100 border-y-2 border-red-300">
-                        <td colSpan={11} className="py-2.5 px-3">
+                        <td colSpan={12} className="py-2.5 px-3">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-red-950 font-extrabold text-xs">
                             <div className="flex items-center gap-2">
                               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
@@ -1461,6 +1549,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onViewVoucher }) => {
         onClose={() => setPhotoModalItem(null)}
         item={photoModalItem}
         onSaveImage={updateItemImage}
+      />
+
+      {/* Stocks in Ligao Summary & Audit Modal */}
+      <LigaoStockModal
+        isOpen={isLigaoModalOpen}
+        onClose={() => setIsLigaoModalOpen(false)}
+        supplies={supplies}
+        onAdjustStock={adjustLocationStock}
       />
     </div>
   );

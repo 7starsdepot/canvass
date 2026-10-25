@@ -9,6 +9,8 @@ import {
   updateCentralPrices,
   updateCentralItemImage,
   adjustCentralStock,
+  adjustCentralLocationStock,
+  updateCentralLocationStocks,
   deleteCentralSupply,
   batchDeleteCentralSupplies,
   batchSaveCentralSupplies,
@@ -42,6 +44,8 @@ interface InventoryContextType {
   deleteSupplyItem: (id: string) => void;
   deleteMultipleSupplies: (ids: string[]) => Promise<void>;
   adjustStock: (id: string, delta: number) => void;
+  adjustLocationStock: (id: string, location: 'gbtn' | 'ligao', delta: number) => void;
+  updateLocationStocks: (id: string, stockGbtn: number, stockLigao: number) => void;
   importExcelSupplies: (items: Omit<SupplyItem, 'id' | 'updatedAt'>[], mode: 'append' | 'replace') => number;
   clearAllSupplies: () => void;
 
@@ -86,6 +90,18 @@ const ALL_POSSIBLE_SUPPLY_KEYS = [
   'supplies',
 ];
 
+function normalizeSupplyItem(item: any): SupplyItem {
+  const gbtn = item.stockGbtn !== undefined ? Math.max(0, Number(item.stockGbtn) || 0) : Math.max(0, Number(item.stock) || 0);
+  const ligao = item.stockLigao !== undefined ? Math.max(0, Number(item.stockLigao) || 0) : 0;
+  const totalStock = gbtn + ligao;
+  return {
+    ...item,
+    stockGbtn: gbtn,
+    stockLigao: ligao,
+    stock: totalStock,
+  };
+}
+
 /**
  * Robust initial supplies fallback loader that inspects localStorage
  * and falls back to bundled master price list while Firestore finishes its initial snapshot.
@@ -97,7 +113,7 @@ function loadFallbackSupplies(): SupplyItem[] {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map(normalizeSupplyItem);
         }
         if (
           parsed &&
@@ -105,7 +121,7 @@ function loadFallbackSupplies(): SupplyItem[] {
           Array.isArray((parsed as any).items) &&
           (parsed as any).items.length > 0
         ) {
-          return (parsed as any).items;
+          return (parsed as any).items.map(normalizeSupplyItem);
         }
       }
     }
@@ -114,7 +130,7 @@ function loadFallbackSupplies(): SupplyItem[] {
   }
 
   if (Array.isArray(initialSuppliesData) && initialSuppliesData.length > 0) {
-    return initialSuppliesData as SupplyItem[];
+    return (initialSuppliesData as SupplyItem[]).map(normalizeSupplyItem);
   }
 
   return [];
@@ -306,10 +322,17 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // --- Central Database Operations (Syncs to Cloud Immediately) ---
 
   const addSupplyItem = (item: Omit<SupplyItem, 'id' | 'updatedAt'>) => {
+    const stockGbtn = item.stockGbtn !== undefined ? Math.max(0, Number(item.stockGbtn) || 0) : Math.max(0, Number(item.stock) || 0);
+    const stockLigao = item.stockLigao !== undefined ? Math.max(0, Number(item.stockLigao) || 0) : 0;
+    const totalStock = stockGbtn + stockLigao;
+
     const newItem: SupplyItem = {
       ...item,
       id: 'sup-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName),
+      stockGbtn,
+      stockLigao,
+      stock: totalStock,
       updatedAt: new Date().toISOString(),
     };
 
@@ -324,9 +347,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateSupplyItem = (item: SupplyItem) => {
     const normalizedName = item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName);
+    const stockGbtn = item.stockGbtn !== undefined ? Math.max(0, Number(item.stockGbtn) || 0) : Math.max(0, Number(item.stock) || 0);
+    const stockLigao = item.stockLigao !== undefined ? Math.max(0, Number(item.stockLigao) || 0) : 0;
+    const totalStock = stockGbtn + stockLigao;
+
     const updated: SupplyItem = {
       ...item,
       name: normalizedName,
+      stockGbtn,
+      stockLigao,
+      stock: totalStock,
       updatedAt: new Date().toISOString(),
     };
 
@@ -394,23 +424,64 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const adjustStock = (id: string, delta: number) => {
+    adjustLocationStock(id, 'gbtn', delta);
+  };
+
+  const adjustLocationStock = (id: string, location: 'gbtn' | 'ligao', delta: number) => {
     const target = supplies.find(s => s.id === id);
-    const currentStock = target ? target.stock : 0;
-    const newStock = Math.max(0, currentStock + delta);
+    const currentGbtn = target ? (target.stockGbtn !== undefined ? target.stockGbtn : target.stock) : 0;
+    const currentLigao = target ? (target.stockLigao !== undefined ? target.stockLigao : 0) : 0;
+
+    const newGbtn = location === 'gbtn' ? Math.max(0, currentGbtn + delta) : currentGbtn;
+    const newLigao = location === 'ligao' ? Math.max(0, currentLigao + delta) : currentLigao;
+    const totalStock = newGbtn + newLigao;
 
     // Optimistic local update
     setSupplies(prev =>
       prev.map(s => {
         if (s.id === id) {
-          return { ...s, stock: newStock, updatedAt: new Date().toISOString() };
+          return {
+            ...s,
+            stockGbtn: newGbtn,
+            stockLigao: newLigao,
+            stock: totalStock,
+            updatedAt: new Date().toISOString(),
+          };
         }
         return s;
       })
     );
 
     // Save to central Firestore database immediately
-    adjustCentralStock(id, delta, currentStock).catch(err => {
-      console.error('Failed to adjust stock in central database:', err);
+    adjustCentralLocationStock(id, location, delta, currentGbtn, currentLigao).catch(err => {
+      console.error('Failed to adjust location stock in central database:', err);
+    });
+  };
+
+  const updateLocationStocks = (id: string, stockGbtn: number, stockLigao: number) => {
+    const safeGbtn = Math.max(0, Number(stockGbtn) || 0);
+    const safeLigao = Math.max(0, Number(stockLigao) || 0);
+    const totalStock = safeGbtn + safeLigao;
+
+    // Optimistic local update
+    setSupplies(prev =>
+      prev.map(s => {
+        if (s.id === id) {
+          return {
+            ...s,
+            stockGbtn: safeGbtn,
+            stockLigao: safeLigao,
+            stock: totalStock,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return s;
+      })
+    );
+
+    // Save to central Firestore database immediately
+    updateCentralLocationStocks(id, safeGbtn, safeLigao).catch(err => {
+      console.error('Failed to update location stocks in central database:', err);
     });
   };
 
@@ -475,6 +546,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const addSnedSupplyItem = async (item: Omit<SupplyItem, 'id' | 'updatedAt'>): Promise<void> => {
+    const stockGbtn = item.stockGbtn !== undefined ? Math.max(0, Number(item.stockGbtn) || 0) : Math.max(0, Number(item.stock) || 0);
+    const stockLigao = item.stockLigao !== undefined ? Math.max(0, Number(item.stockLigao) || 0) : 0;
+    const totalStock = stockGbtn + stockLigao;
+
     const newItem: SupplyItem = {
       ...item,
       id: 'sned-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
@@ -482,6 +557,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       category: item.category || 'SNED Materials',
       snedCategory: item.snedCategory || 'Sensory & Tactile',
       name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName),
+      stockGbtn,
+      stockLigao,
+      stock: totalStock,
       updatedAt: new Date().toISOString(),
     };
 
@@ -518,12 +596,20 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     mode: 'append' | 'replace'
   ): number => {
     const timestamp = Date.now();
-    const formattedItems: SupplyItem[] = items.map((it, idx) => ({
-      ...it,
-      id: `sup-${timestamp}-${idx}`,
-      name: it.name || (it.brand ? `${it.brand} ${it.genericName}` : it.genericName),
-      updatedAt: new Date().toISOString(),
-    }));
+    const formattedItems: SupplyItem[] = items.map((it, idx) => {
+      const stockGbtn = it.stockGbtn !== undefined ? Math.max(0, Number(it.stockGbtn) || 0) : Math.max(0, Number(it.stock) || 0);
+      const stockLigao = it.stockLigao !== undefined ? Math.max(0, Number(it.stockLigao) || 0) : 0;
+      const totalStock = stockGbtn + stockLigao;
+      return {
+        ...it,
+        id: `sup-${timestamp}-${idx}`,
+        name: it.name || (it.brand ? `${it.brand} ${it.genericName}` : it.genericName),
+        stockGbtn,
+        stockLigao,
+        stock: totalStock,
+        updatedAt: new Date().toISOString(),
+      };
+    });
 
     // Optimistic update
     const nextSupplies = mode === 'replace' ? formattedItems : [...formattedItems, ...supplies];
@@ -698,9 +784,27 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           s => s.id === item.itemId || (s.sku && item.sku && s.sku === item.sku)
         );
         if (matched) {
-          const previousStock = matched.stock;
+          const currentGbtn = matched.stockGbtn !== undefined ? matched.stockGbtn : matched.stock;
+          const currentLigao = matched.stockLigao !== undefined ? matched.stockLigao : 0;
+          const previousStock = currentGbtn + currentLigao;
           const deductQty = item.quantity;
-          const newStock = Math.max(0, previousStock - deductQty);
+
+          let rem = deductQty;
+          let newGbtn = currentGbtn;
+          let newLigao = currentLigao;
+
+          if (newGbtn >= rem) {
+            newGbtn -= rem;
+            rem = 0;
+          } else {
+            rem -= newGbtn;
+            newGbtn = 0;
+            newLigao = Math.max(0, newLigao - rem);
+          }
+
+          const newStock = newGbtn + newLigao;
+          matched.stockGbtn = newGbtn;
+          matched.stockLigao = newLigao;
           matched.stock = newStock;
           matched.updatedAt = nowIso;
           updatedMap.set(matched.id, matched);
@@ -715,8 +819,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             timestamp: nowIso,
           });
 
-          adjustCentralStock(matched.id, -deductQty, previousStock).catch(err => {
-            console.error(`Failed to adjust central stock for item ${matched.id}:`, err);
+          updateCentralLocationStocks(matched.id, newGbtn, newLigao).catch(err => {
+            console.error(`Failed to adjust central location stocks for item ${matched.id}:`, err);
           });
         }
       }
@@ -800,9 +904,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       );
 
       if (matched) {
-        const previousStock = matched.stock;
+        const currentGbtn = matched.stockGbtn !== undefined ? matched.stockGbtn : matched.stock;
+        const currentLigao = matched.stockLigao !== undefined ? matched.stockLigao : 0;
+        const previousStock = currentGbtn + currentLigao;
         const deductQty = item.quantity;
-        const newStock = Math.max(0, previousStock - deductQty);
+
+        let rem = deductQty;
+        let newGbtn = currentGbtn;
+        let newLigao = currentLigao;
+
+        if (newGbtn >= rem) {
+          newGbtn -= rem;
+          rem = 0;
+        } else {
+          rem -= newGbtn;
+          newGbtn = 0;
+          newLigao = Math.max(0, newLigao - rem);
+        }
+
+        const newStock = newGbtn + newLigao;
 
         if (previousStock < deductQty) {
           warnings.push(
@@ -810,6 +930,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           );
         }
 
+        matched.stockGbtn = newGbtn;
+        matched.stockLigao = newLigao;
         matched.stock = newStock;
         matched.updatedAt = nowIso;
         updatedMap.set(matched.id, matched);
@@ -825,8 +947,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
 
         // Persist deduction directly to Firestore
-        adjustCentralStock(matched.id, -deductQty, previousStock).catch(err => {
-          console.error(`Failed to adjust central stock for item ${matched.id}:`, err);
+        updateCentralLocationStocks(matched.id, newGbtn, newLigao).catch(err => {
+          console.error(`Failed to adjust central location stocks for item ${matched.id}:`, err);
         });
       }
     }
@@ -885,14 +1007,19 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       for (const log of order.deductionLogs) {
         const supply = updatedMap.get(log.itemId);
         if (supply) {
-          const currentStock = supply.stock;
-          const restoredStock = currentStock + log.quantityDeducted;
-          supply.stock = restoredStock;
+          const currentGbtn = supply.stockGbtn !== undefined ? supply.stockGbtn : supply.stock;
+          const currentLigao = supply.stockLigao !== undefined ? supply.stockLigao : 0;
+          const newGbtn = currentGbtn + log.quantityDeducted;
+          const newStock = newGbtn + currentLigao;
+
+          supply.stockGbtn = newGbtn;
+          supply.stockLigao = currentLigao;
+          supply.stock = newStock;
           supply.updatedAt = new Date().toISOString();
           updatedMap.set(supply.id, supply);
           restoredCount++;
 
-          adjustCentralStock(supply.id, log.quantityDeducted, currentStock).catch(err => {
+          updateCentralLocationStocks(supply.id, newGbtn, currentLigao).catch(err => {
             console.error(`Failed to restore stock for item ${supply.id}:`, err);
           });
         }
@@ -983,6 +1110,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       deleteSupplyItem,
       deleteMultipleSupplies,
       adjustStock,
+      adjustLocationStock,
+      updateLocationStocks,
       importExcelSupplies,
       clearAllSupplies,
       canvass,

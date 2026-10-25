@@ -21,6 +21,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const [brand, setBrand] = useState('');
   const [description, setDescription] = useState('');
   const [unit, setUnit] = useState('Piece');
+  const [stockGbtn, setStockGbtn] = useState(15);
+  const [stockLigao, setStockLigao] = useState(10);
   const [stock, setStock] = useState(25);
   const [sellingPrice, setSellingPrice] = useState(10.00);
   const [buyingPrice, setBuyingPrice] = useState(6.50);
@@ -37,7 +39,11 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setBrand(itemToEdit.brand || '');
       setDescription(itemToEdit.description || '');
       setUnit(itemToEdit.unit || 'Piece');
-      setStock(itemToEdit.stock);
+      const gbtn = itemToEdit.stockGbtn !== undefined ? itemToEdit.stockGbtn : (itemToEdit.stock || 0);
+      const ligao = itemToEdit.stockLigao !== undefined ? itemToEdit.stockLigao : 0;
+      setStockGbtn(gbtn);
+      setStockLigao(ligao);
+      setStock(gbtn + ligao);
       setSellingPrice(itemToEdit.sellingPrice);
       setBuyingPrice(itemToEdit.buyingPrice);
       setSku(itemToEdit.sku);
@@ -49,7 +55,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setBrand('');
       setDescription('');
       setUnit('Piece');
-      setStock(20);
+      setStockGbtn(15);
+      setStockLigao(10);
+      setStock(25);
       setSellingPrice(10.00);
       setBuyingPrice(6.50);
       setSku('SUP-' + Math.floor(100 + Math.random() * 900));
@@ -61,6 +69,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   }, [itemToEdit, isOpen]);
 
   if (!isOpen) return null;
+
+  const combinedTotalStock = Math.max(0, Number(stockGbtn) || 0) + Math.max(0, Number(stockLigao) || 0);
 
   // Margin Calculations
   const unitProfit = sellingPrice - buyingPrice;
@@ -79,8 +89,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setError('Please specify the packaging Unit (e.g., Box, Ream, Piece).');
       return;
     }
-    if (stock < 0) {
-      setError('No. of Stock cannot be negative.');
+    if (stockGbtn < 0 || stockLigao < 0) {
+      setError('Stock quantities cannot be negative.');
       return;
     }
     if (sellingPrice < 0) {
@@ -103,7 +113,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
         name: fullName,
         description: description.trim(),
         unit: unit.trim(),
-        stock: Number(stock),
+        stockGbtn: Number(stockGbtn),
+        stockLigao: Number(stockLigao),
+        stock: combinedTotalStock,
         sellingPrice: Number(sellingPrice),
         buyingPrice: Number(buyingPrice),
         minStockLevel: 10,
@@ -211,46 +223,76 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
             />
           </div>
 
-          {/* Unit & No. of Stock */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="unit">
-                Unit *
+          {/* Unit */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="unit">
+              Unit *
+            </label>
+            <input
+              id="unit"
+              type="text"
+              value={unit}
+              onChange={e => setUnit(e.target.value)}
+              placeholder="e.g. Box of 12, Ream, Piece, Pack"
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+
+          {/* Stock Divided: IN GBTN and IN Ligao */}
+          <div className="p-3.5 bg-slate-50/90 rounded-2xl border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-800">
+                Stock Quantity by Location *
               </label>
-              <input
-                id="unit"
-                type="text"
-                value={unit}
-                onChange={e => setUnit(e.target.value)}
-                placeholder="e.g. Box of 12, Ream, Piece, Pack"
-                required
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
-              />
+              <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                combinedTotalStock === 0
+                  ? 'bg-red-50 text-red-600 border-red-200'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}>
+                Combined Total: {combinedTotalStock}
+              </span>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="stock">
-                No. of Stock *
-              </label>
-              <input
-                id="stock"
-                type="number"
-                min="0"
-                value={stock}
-                onChange={e => setStock(Math.max(0, parseInt(e.target.value) || 0))}
-                required
-                className={`w-full px-3 py-2 border rounded-xl text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 ${
-                  stock === 0
-                    ? 'border-red-300 bg-red-50/50 text-red-700 focus:ring-red-500'
-                    : 'border-slate-300 text-slate-900 focus:ring-blue-600'
-                }`}
-              />
-              {stock === 0 && (
-                <span className="text-[10px] text-red-600 font-semibold mt-0.5 block">
-                  Zero stock items are placed at the lowest part of the inventory
-                </span>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* IN GBTN */}
+              <div className="p-2.5 bg-amber-50/50 rounded-xl border border-amber-200 shadow-2xs">
+                <label className="block text-[11px] font-bold text-amber-900 mb-1" htmlFor="stockGbtn">
+                  Stock IN GBTN *
+                </label>
+                <input
+                  id="stockGbtn"
+                  type="number"
+                  min="0"
+                  value={stockGbtn}
+                  onChange={e => setStockGbtn(Math.max(0, parseInt(e.target.value) || 0))}
+                  required
+                  className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs sm:text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-[10px] text-amber-700/80 mt-0.5 block font-medium">GBTN Main Depot</span>
+              </div>
+
+              {/* IN Ligao */}
+              <div className="p-2.5 bg-sky-50/50 rounded-xl border border-sky-200 shadow-2xs">
+                <label className="block text-[11px] font-bold text-sky-900 mb-1" htmlFor="stockLigao">
+                  Stock IN Ligao *
+                </label>
+                <input
+                  id="stockLigao"
+                  type="number"
+                  min="0"
+                  value={stockLigao}
+                  onChange={e => setStockLigao(Math.max(0, parseInt(e.target.value) || 0))}
+                  required
+                  className="w-full px-2.5 py-1.5 bg-white border border-sky-300 rounded-lg text-xs sm:text-sm font-bold text-sky-950 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+                <span className="text-[10px] text-sky-700/80 mt-0.5 block font-medium">Ligao Branch</span>
+              </div>
             </div>
+
+            <p className="text-[10px] text-slate-500 italic">
+              💡 In the Customer View, both locations are combined and displayed as one total stock quantity ({combinedTotalStock} Available).
+            </p>
           </div>
 
           {/* SKU */}

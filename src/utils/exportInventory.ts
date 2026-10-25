@@ -28,17 +28,24 @@ export function exportLatestInventoryToExcel(
     return;
   }
 
-  // Exact same data details as uploaded Excel file
-  const rows = supplies.map(item => ({
-    'Generic Name': item.genericName || '',
-    'Brand': item.brand || '',
-    'Description': item.description || '',
-    'Unit': item.unit || 'Piece',
-    'No. of Stock': Number(item.stock) || 0,
-    'selling price': Number(item.sellingPrice) || 0,
-    'Buying price': Number(item.buyingPrice) || 0,
-    'SKU': item.sku || '',
-  }));
+  // Exact same data details with split location columns and total stock
+  const rows = supplies.map(item => {
+    const gbtn = item.stockGbtn !== undefined ? item.stockGbtn : (item.stock || 0);
+    const ligao = item.stockLigao !== undefined ? item.stockLigao : 0;
+    const total = gbtn + ligao;
+    return {
+      'Generic Name': item.genericName || '',
+      'Brand': item.brand || '',
+      'Description': item.description || '',
+      'Unit': item.unit || 'Piece',
+      'IN GBTN': gbtn,
+      'IN Ligao': ligao,
+      'No. of Stock': total,
+      'selling price': Number(item.sellingPrice) || 0,
+      'Buying price': Number(item.buyingPrice) || 0,
+      'SKU': item.sku || '',
+    };
+  });
 
   // Convert to worksheet
   const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -49,7 +56,9 @@ export function exportLatestInventoryToExcel(
     { wch: 18 }, // Brand
     { wch: 45 }, // Description
     { wch: 14 }, // Unit
-    { wch: 14 }, // No. of Stock
+    { wch: 12 }, // IN GBTN
+    { wch: 12 }, // IN Ligao
+    { wch: 14 }, // No. of Stock (Total)
     { wch: 16 }, // selling price
     { wch: 16 }, // Buying price
     { wch: 16 }, // SKU
@@ -74,16 +83,23 @@ export function exportLatestInventoryToCSV(
     return;
   }
 
-  const exportData = supplies.map(item => ({
-    'Generic Name': item.genericName || '',
-    'Brand': item.brand || '',
-    'Description': item.description || '',
-    'Unit': item.unit || 'Piece',
-    'No. of Stock': Number(item.stock) || 0,
-    'selling price': Number(item.sellingPrice) || 0,
-    'Buying price': Number(item.buyingPrice) || 0,
-    'SKU': item.sku || '',
-  }));
+  const exportData = supplies.map(item => {
+    const gbtn = item.stockGbtn !== undefined ? item.stockGbtn : (item.stock || 0);
+    const ligao = item.stockLigao !== undefined ? item.stockLigao : 0;
+    const total = gbtn + ligao;
+    return {
+      'Generic Name': item.genericName || '',
+      'Brand': item.brand || '',
+      'Description': item.description || '',
+      'Unit': item.unit || 'Piece',
+      'IN GBTN': gbtn,
+      'IN Ligao': ligao,
+      'No. of Stock': total,
+      'selling price': Number(item.sellingPrice) || 0,
+      'Buying price': Number(item.buyingPrice) || 0,
+      'SKU': item.sku || '',
+    };
+  });
 
   const worksheet = XLSX.utils.json_to_sheet(exportData);
   const csvOutput = XLSX.utils.sheet_to_csv(worksheet);

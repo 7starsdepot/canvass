@@ -21,7 +21,21 @@ export const CANVASS_COLLECTION = 'canvassSlips';
  * Convert raw Firestore doc data into strongly typed SupplyItem
  */
 export function formatFirestoreSupply(id: string, data: any): SupplyItem {
-  const stockVal = Number(data.stock ?? data.quantity ?? 0);
+  let stockGbtn: number;
+  let stockLigao: number;
+
+  if (data.stockGbtn !== undefined || data.stockLigao !== undefined) {
+    stockGbtn = Math.max(0, Number(data.stockGbtn ?? data.stock_gbtn ?? data.inGbtn ?? 0));
+    stockLigao = Math.max(0, Number(data.stockLigao ?? data.stock_ligao ?? data.inLigao ?? 0));
+  } else {
+    // Legacy fallback: if split columns not yet saved, default to GBTN stock
+    const legacyStock = Math.max(0, Number(data.stock ?? data.quantity ?? 0));
+    stockGbtn = legacyStock;
+    stockLigao = 0;
+  }
+
+  const totalStock = stockGbtn + stockLigao;
+
   return {
     id,
     sku: data.sku || '',
@@ -30,7 +44,9 @@ export function formatFirestoreSupply(id: string, data: any): SupplyItem {
     name: data.name || (data.brand ? `${data.brand} ${data.genericName}` : data.genericName || 'Untitled Item'),
     description: data.description || '',
     unit: data.unit || 'pc',
-    stock: stockVal,
+    stock: totalStock,
+    stockGbtn,
+    stockLigao,
     sellingPrice: Number(data.sellingPrice || 0),
     buyingPrice: Number(data.buyingPrice || 0),
     category: data.category || 'School & Office Supplies',
@@ -46,7 +62,10 @@ export function formatFirestoreSupply(id: string, data: any): SupplyItem {
  * Format supply item for Firestore storage
  */
 export function formatSupplyForStorage(item: SupplyItem) {
-  const stock = Number(item.stock ?? 0);
+  const stockGbtn = Math.max(0, Number(item.stockGbtn !== undefined ? item.stockGbtn : (item.stock ?? 0)));
+  const stockLigao = Math.max(0, Number(item.stockLigao ?? 0));
+  const totalStock = stockGbtn + stockLigao;
+
   return {
     id: item.id,
     sku: item.sku || '',
@@ -55,8 +74,10 @@ export function formatSupplyForStorage(item: SupplyItem) {
     name: item.name || (item.brand ? `${item.brand} ${item.genericName}` : item.genericName || 'Untitled Item'),
     description: (item.description || '').trim(),
     unit: (item.unit || 'pc').trim(),
-    stock: stock,
-    quantity: stock, // stored for cross-compatibility
+    stock: totalStock,
+    quantity: totalStock, // stored for cross-compatibility
+    stockGbtn,
+    stockLigao,
     sellingPrice: Math.max(0, Number(item.sellingPrice) || 0),
     buyingPrice: Math.max(0, Number(item.buyingPrice) || 0),
     category: item.category || (item.isSned ? 'SNED Materials' : 'School & Office Supplies'),
@@ -172,6 +193,62 @@ export async function adjustCentralStock(id: string, delta: number, currentStock
   await updateDoc(docRef, {
     stock: newStock,
     quantity: newStock,
+    stockGbtn: newStock,
+    updatedAt,
+  });
+}
+
+/**
+ * Adjust location stock (GBTN or Ligao) immediately in Firestore
+ */
+export async function adjustCentralLocationStock(
+  id: string,
+  location: 'gbtn' | 'ligao',
+  delta: number,
+  currentGbtn: number,
+  currentLigao: number
+): Promise<void> {
+  const docRef = doc(db, SUPPLIES_COLLECTION, id);
+  let newGbtn = currentGbtn;
+  let newLigao = currentLigao;
+
+  if (location === 'gbtn') {
+    newGbtn = Math.max(0, currentGbtn + delta);
+  } else {
+    newLigao = Math.max(0, currentLigao + delta);
+  }
+
+  const totalStock = newGbtn + newLigao;
+  const updatedAt = new Date().toISOString();
+
+  await updateDoc(docRef, {
+    stockGbtn: newGbtn,
+    stockLigao: newLigao,
+    stock: totalStock,
+    quantity: totalStock,
+    updatedAt,
+  });
+}
+
+/**
+ * Set exact location stocks (GBTN and Ligao) immediately in Firestore
+ */
+export async function updateCentralLocationStocks(
+  id: string,
+  stockGbtn: number,
+  stockLigao: number
+): Promise<void> {
+  const docRef = doc(db, SUPPLIES_COLLECTION, id);
+  const safeGbtn = Math.max(0, Number(stockGbtn) || 0);
+  const safeLigao = Math.max(0, Number(stockLigao) || 0);
+  const totalStock = safeGbtn + safeLigao;
+  const updatedAt = new Date().toISOString();
+
+  await updateDoc(docRef, {
+    stockGbtn: safeGbtn,
+    stockLigao: safeLigao,
+    stock: totalStock,
+    quantity: totalStock,
     updatedAt,
   });
 }

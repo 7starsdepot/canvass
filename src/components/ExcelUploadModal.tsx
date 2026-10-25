@@ -25,6 +25,8 @@ interface ParsedSupplyRow {
   description: string;
   unit: string;
   stock: number;
+  stockGbtn?: number;
+  stockLigao?: number;
   sellingPrice: number;
   buyingPrice: number;
   sku: string;
@@ -197,12 +199,29 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
           'No. of Stock',
           'No of Stock',
           'No. of stock',
+          'Total Stock',
           'Stock',
           'Quantity',
           'Qty',
           'Stocks',
           'Count',
           'OnHand',
+        ]);
+        const rawStockGbtn = extractFieldValue(row, [
+          'IN GBTN',
+          'In GBTN',
+          'Stock GBTN',
+          'GBTN Stock',
+          'GBTN',
+          'Location 1',
+        ]);
+        const rawStockLigao = extractFieldValue(row, [
+          'IN Ligao',
+          'In Ligao',
+          'Stock Ligao',
+          'Ligao Stock',
+          'Ligao',
+          'Location 2',
         ]);
         const rawSelling = extractFieldValue(row, [
           'selling price',
@@ -233,10 +252,28 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
         const description = String(rawDesc ?? '').trim();
         const unit = String(rawUnit ?? 'Piece').trim() || 'Piece';
 
-        // Parse Stock (handle strings with commas like "1,000" or currency)
-        const cleanStockStr = String(rawStock ?? '0').replace(/[^0-9-]/g, '');
-        const parsedStock = parseInt(cleanStockStr, 10);
-        const stock = isNaN(parsedStock) ? 0 : Math.max(0, parsedStock);
+        // Parse Stock & Location Stocks
+        let stockGbtn = 0;
+        let stockLigao = 0;
+        let stock = 0;
+
+        if (rawStockGbtn !== undefined || rawStockLigao !== undefined) {
+          const cleanGbtnStr = String(rawStockGbtn ?? '0').replace(/[^0-9-]/g, '');
+          const parsedGbtn = parseInt(cleanGbtnStr, 10);
+          stockGbtn = isNaN(parsedGbtn) ? 0 : Math.max(0, parsedGbtn);
+
+          const cleanLigaoStr = String(rawStockLigao ?? '0').replace(/[^0-9-]/g, '');
+          const parsedLigao = parseInt(cleanLigaoStr, 10);
+          stockLigao = isNaN(parsedLigao) ? 0 : Math.max(0, parsedLigao);
+
+          stock = stockGbtn + stockLigao;
+        } else {
+          const cleanStockStr = String(rawStock ?? '0').replace(/[^0-9-]/g, '');
+          const parsedStock = parseInt(cleanStockStr, 10);
+          stock = isNaN(parsedStock) ? 0 : Math.max(0, parsedStock);
+          stockGbtn = stock;
+          stockLigao = 0;
+        }
 
         // Parse Selling Price (handle ₱, $, commas)
         const cleanSellingStr = String(rawSelling ?? '0').replace(/[^0-9.-]/g, '');
@@ -269,6 +306,8 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
           description,
           unit,
           stock,
+          stockGbtn,
+          stockLigao,
           sellingPrice,
           buyingPrice,
           sku,
@@ -374,6 +413,8 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
       name: r.brand ? `${r.brand} ${r.genericName}` : r.genericName,
       description: r.description,
       unit: r.unit,
+      stockGbtn: r.stockGbtn,
+      stockLigao: r.stockLigao,
       stock: r.stock,
       sellingPrice: r.sellingPrice,
       buyingPrice: r.buyingPrice,
@@ -566,7 +607,9 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                         <th className="py-2.5 px-3">Brand</th>
                         <th className="py-2.5 px-3">Description</th>
                         <th className="py-2.5 px-3">Unit</th>
-                        <th className="py-2.5 px-3 text-center">No. of Stock</th>
+                        <th className="py-2.5 px-2 text-center bg-amber-50/70 text-amber-950 font-bold">IN GBTN</th>
+                        <th className="py-2.5 px-2 text-center bg-sky-50/70 text-sky-950 font-bold">IN Ligao</th>
+                        <th className="py-2.5 px-2 text-center font-bold">Total Stock</th>
                         <th className="py-2.5 px-3 text-right">Selling Price</th>
                         <th className="py-2.5 px-3 text-right bg-amber-50/50">Buying Price</th>
                         <th className="py-2.5 px-3 text-center">Status</th>
@@ -584,7 +627,15 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                             {row.description || '—'}
                           </td>
                           <td className="py-2 px-3 text-slate-700">{row.unit}</td>
-                          <td className="py-2 px-3 text-center font-bold text-slate-800">{row.stock}</td>
+                          <td className="py-2 px-2 text-center font-bold text-amber-900 bg-amber-50/30">
+                            {row.stockGbtn ?? row.stock}
+                          </td>
+                          <td className="py-2 px-2 text-center font-bold text-sky-900 bg-sky-50/30">
+                            {row.stockLigao ?? 0}
+                          </td>
+                          <td className="py-2 px-2 text-center font-bold text-slate-800">
+                            {row.stock}
+                          </td>
                           <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
                             {formatPeso(row.sellingPrice)}
                           </td>

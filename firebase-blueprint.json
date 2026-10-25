@@ -13,6 +13,8 @@
         "buyingPrice": { "type": "number" },
         "sellingPrice": { "type": "number" },
         "quantity": { "type": "number" },
+        "stockGbtn": { "type": "number" },
+        "stockLigao": { "type": "number" },
         "sku": { "type": "string" },
         "category": { "type": "string" },
         "isSned": { "type": "boolean" },

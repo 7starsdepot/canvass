@@ -6,7 +6,9 @@ export interface SupplyItem {
   name: string;        // Combined or primary display name
   description: string; // "Description"
   unit: string;        // "Unit"
-  stock: number;       // "No. of Stock"
+  stock: number;       // Combined total stock (used in Customer View)
+  stockGbtn?: number;  // Stock quantity "IN GBTN" (Admin Portal separate column)
+  stockLigao?: number; // Stock quantity "IN Ligao" (Admin Portal separate column)
   sellingPrice: number;// "selling price"
   buyingPrice: number; // "Buying price" (Admin portal only)
   category?: string;

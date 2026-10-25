@@ -119,13 +119,21 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
     });
   }, [supplies, searchQuery, selectedBrand, selectedCategory]);
 
+  // Combined stock helper: combines stock from GBTN and Ligao locations into one single total
+  const getCombinedStock = (item: SupplyItem): number => {
+    if (item.stockGbtn !== undefined || item.stockLigao !== undefined) {
+      return (item.stockGbtn ?? 0) + (item.stockLigao ?? 0);
+    }
+    return item.stock ?? 0;
+  };
+
   // Group supplies: In-stock items first, zero stock items at the lowest part
   const inStockSupplies = useMemo(() => {
-    return filteredSupplies.filter(item => item.stock > 0);
+    return filteredSupplies.filter(item => getCombinedStock(item) > 0);
   }, [filteredSupplies]);
 
   const zeroStockSupplies = useMemo(() => {
-    return filteredSupplies.filter(item => item.stock <= 0);
+    return filteredSupplies.filter(item => getCombinedStock(item) <= 0);
   }, [filteredSupplies]);
 
   // Current active canvass statistics
@@ -136,7 +144,9 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
   );
 
   // Helper to render supply card
-  const renderItemCard = (item: SupplyItem, isZeroStock: boolean) => {
+  const renderItemCard = (item: SupplyItem, isZeroStockRow: boolean) => {
+    const combinedStock = getCombinedStock(item);
+    const isZeroStock = combinedStock <= 0;
     const canvassedItem = canvass.find(c => c.itemId === item.id);
     const quantityInCanvass = canvassedItem?.quantity || 0;
 
@@ -198,12 +208,12 @@ export const CustomerView: React.FC<CustomerViewProps> = ({
               className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                 isZeroStock
                   ? 'bg-red-50 text-red-600 border border-red-200'
-                  : item.stock <= 10
+                  : combinedStock <= 10
                   ? 'bg-amber-50 text-amber-700 border border-amber-200'
                   : 'bg-blue-50 text-blue-700 border border-blue-200'
               }`}
             >
-              {isZeroStock ? '0 Available • Out of Stock' : `${item.stock} Available`}
+              {isZeroStock ? '0 Available • Out of Stock' : `${combinedStock} Available`}
             </span>
           </div>
         </div>
